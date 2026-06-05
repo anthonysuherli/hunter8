@@ -88,3 +88,29 @@ def test_greenhouse_dry_run_does_not_click_submit():
     handler.apply(page, profile, Path("/tmp/resume.pdf"))
     submit = page.query_selector.return_value
     submit.click.assert_not_called()
+
+
+from handlers.ashby import AshbyHandler
+from handlers.lever import LeverHandler
+
+
+def test_ashby_auto_submits_when_no_textareas():
+    handler = AshbyHandler(dry_run=False)
+    page = _make_page(textareas=0)
+    result = handler.apply(page, MagicMock(
+        first_name="Anthony", last_name="Suherli",
+        email="a@b.com", phone="555-0100",
+        linkedin="linkedin.com/in/x", github="github.com/x"
+    ), Path("/tmp/resume.pdf"))
+    assert result == ApplicationResult.SUBMITTED
+
+
+def test_lever_always_hitl(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    handler = LeverHandler(dry_run=False)
+    page = _make_page(textareas=0)
+    result = handler.apply(page, MagicMock(
+        full_name="Anthony Suherli", email="a@b.com",
+        phone="555", linkedin="li", github="gh"
+    ), Path("/tmp/resume.pdf"))
+    assert result == ApplicationResult.HITL
