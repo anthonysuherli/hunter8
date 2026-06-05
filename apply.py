@@ -60,7 +60,7 @@ def main(tracker: Path, dry_run: bool, row: int | None, ats: str | None, headles
     fh.setLevel(logging.DEBUG)
     logging.getLogger().addHandler(fh)
 
-    tmp_dir = Path(tempfile.mkdtemp(prefix="apply-bot-"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="hunter8-"))
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=headless)
