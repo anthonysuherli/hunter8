@@ -114,3 +114,28 @@ def test_lever_always_hitl(monkeypatch):
         phone="555", linkedin="li", github="gh"
     ), Path("/tmp/resume.pdf"))
     assert result == ApplicationResult.HITL
+
+
+from handlers import route
+from handlers.base import FallbackHandler
+
+
+def test_route_greenhouse():
+    from handlers.greenhouse import GreenhouseHandler
+    h = route("https://job-boards.greenhouse.io/anthropic/jobs/12345")
+    assert isinstance(h, GreenhouseHandler)
+
+
+def test_route_ashby():
+    h = route("https://jobs.ashbyhq.com/ramp/abc123")
+    assert isinstance(h, AshbyHandler)
+
+
+def test_route_lever():
+    h = route("https://jobs.lever.co/cohere/xyz")
+    assert isinstance(h, LeverHandler)
+
+
+def test_route_unknown_falls_back():
+    h = route("https://careers.twosigma.com/careers/JobDetail/123")
+    assert isinstance(h, FallbackHandler)
