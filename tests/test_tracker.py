@@ -1,8 +1,7 @@
 # tests/test_tracker.py
-from pathlib import Path
 import pytest
 import openpyxl
-from tracker import ApplicationRow, iter_applications, update_status
+from tracker import iter_applications, update_status
 
 
 @pytest.fixture
