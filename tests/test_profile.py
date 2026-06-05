@@ -1,7 +1,8 @@
 # tests/test_profile.py
 from pathlib import Path
 import pytest
-from profile import CandidateProfile, load_profile
+import openpyxl
+from candidate_profile import CandidateProfile, load_profile
 
 
 def test_load_profile_returns_dataclass(tmp_tracker):
@@ -22,10 +23,10 @@ def test_sponsorship_defaults_to_yes(tmp_tracker):
 
 @pytest.fixture
 def tmp_tracker(tmp_path):
-    import openpyxl
     wb = openpyxl.Workbook()
     ws = wb.create_sheet("Profile")
-    wb.remove(wb.active)
+    default_sheet = wb["Sheet"]  # openpyxl creates "Sheet" by default
+    wb.remove(default_sheet)
     rows = [
         ("full_name", "Anthony Suherli"),
         ("email", "anthonysuherli@gmail.com"),

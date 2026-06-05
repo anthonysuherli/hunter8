@@ -1,7 +1,8 @@
-# profile.py
+# candidate_profile.py
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 import openpyxl
 
 
@@ -37,7 +38,7 @@ class CandidateProfile:
 def load_profile(tracker_path: Path) -> CandidateProfile:
     wb = openpyxl.load_workbook(tracker_path)
     ws = wb["Profile"]
-    data: dict[str, str | int] = {}
+    data: dict[str, Any] = {}
     for row in ws.iter_rows(min_row=2, values_only=True):
         if row[0] and row[1] is not None:
             data[str(row[0])] = row[1]
