@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 from typing import Iterator
 import openpyxl
+from openpyxl.cell.cell import Cell
 
 COL_PRIORITY = 1
 COL_STATUS = 2
@@ -45,7 +46,7 @@ def iter_applications(
         if status != status_filter:
             continue
         link_cell = ws.cell(row, COL_LINK)
-        url = link_cell.hyperlink.target if link_cell.hyperlink else ""
+        url = (link_cell.hyperlink.target or "") if link_cell.hyperlink else ""
         resume_cell = ws.cell(row, COL_RESUME_PATH)
         resume_path = str(resume_cell.value) if resume_cell.value else None
         yield ApplicationRow(
@@ -68,10 +69,16 @@ def update_status(
 ) -> None:
     wb = openpyxl.load_workbook(tracker_path)
     ws = wb["Apply Tracker"]
-    ws.cell(excel_row, COL_STATUS).value = status
+    status_cell = ws.cell(excel_row, COL_STATUS)
+    assert isinstance(status_cell, Cell)
+    status_cell.value = status
     if status == "Applied":
-        ws.cell(excel_row, COL_DATE).value = date.today().isoformat()
+        date_cell = ws.cell(excel_row, COL_DATE)
+        assert isinstance(date_cell, Cell)
+        date_cell.value = date.today().isoformat()
     if notes:
-        existing = str(ws.cell(excel_row, COL_NOTES).value or "")
-        ws.cell(excel_row, COL_NOTES).value = (existing + " | " + notes).strip(" | ")
+        notes_cell = ws.cell(excel_row, COL_NOTES)
+        assert isinstance(notes_cell, Cell)
+        existing = str(notes_cell.value or "")
+        notes_cell.value = (existing + " | " + notes).strip(" | ")
     wb.save(tracker_path)
