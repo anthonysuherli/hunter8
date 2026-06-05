@@ -1,4 +1,4 @@
-# job-apply-bot
+# hunter8
 
 Playwright CLI that auto-submits job applications from an Excel tracker.
 Fills forms automatically and pauses for human review only when open-ended text fields are detected.
