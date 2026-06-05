@@ -3,6 +3,7 @@ from __future__ import annotations
 import html as html_mod
 import re
 from pathlib import Path
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
@@ -15,8 +16,8 @@ NAVY = colors.HexColor("#1F3A4D")
 GRAY = colors.HexColor("#4A5568")
 
 
-def _S(name: str, **kw: object) -> ParagraphStyle:
-    defaults: dict[str, object] = dict(fontName="Helvetica", fontSize=9, leading=13, textColor=colors.black)
+def _S(name: str, **kw: Any) -> ParagraphStyle:
+    defaults: dict[str, Any] = dict(fontName="Helvetica", fontSize=9, leading=13, textColor=colors.black)
     defaults.update(kw)
     return ParagraphStyle(name, **defaults)
 

@@ -1,12 +1,12 @@
 # tests/test_handlers.py
-import pytest
-from unittest.mock import MagicMock
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 from handlers.base import BaseHandler, ApplicationResult
 
 
 class ConcreteHandler(BaseHandler):
-    def apply(self, page, profile, resume_pdf):
+    def apply(self, _page: Any, _profile: Any, _resume_pdf: Path) -> ApplicationResult:
         return ApplicationResult.SUBMITTED
 
 
