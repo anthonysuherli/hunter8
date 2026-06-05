@@ -14,11 +14,15 @@ _SPONSORSHIP_PHRASINGS = [
 
 class AshbyHandler(BaseHandler):
 
-    def apply(self, page: Any, profile: Any, resume_pdf: Path) -> ApplicationResult:
+    def apply(
+        self, page: Any, profile: Any, resume_pdf: Path,
+        company: str = "", title: str = "",
+    ) -> ApplicationResult:
+        self._company, self._title = company, title
         try:
             page.wait_for_selector("form, [data-testid='application-form']", timeout=15_000)
         except Exception:
-            return self._hitl_pause("Form did not load within 15s")
+            return self._hitl_pause("Form did not load within 15s", company=company, title=title)
 
         for placeholder, value in [("First", profile.first_name), ("Last", profile.last_name)]:
             el = page.query_selector(f'input[placeholder*="{placeholder}"]')
@@ -43,9 +47,9 @@ class AshbyHandler(BaseHandler):
 
         textareas = self._has_visible_textareas(page)
         if textareas:
-            return self._hitl_pause(f"{len(textareas)} open-ended textarea(s) detected")
+            return self._hitl_pause(f"{len(textareas)} open-ended textarea(s) detected", company=company, title=title)
 
-        return self._submit(page)
+        return self._submit(page, company=company, title=title)
 
     def _answer_sponsorship_ashby(self, page: Any) -> None:
         for el in page.query_selector_all("label"):
@@ -58,12 +62,12 @@ class AshbyHandler(BaseHandler):
                         break
                 break
 
-    def _submit(self, page: Any) -> ApplicationResult:
+    def _submit(self, page: Any, company: str = "", title: str = "") -> ApplicationResult:
         submit = page.query_selector(
             'button[type="submit"], input[type="submit"], button:has-text("Submit")'
         )
         if not submit:
-            return self._hitl_pause("Could not locate submit button")
+            return self._hitl_pause("Could not locate submit button", company=company, title=title)
         if not self.dry_run:
             submit.click()
             try:

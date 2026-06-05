@@ -15,11 +15,15 @@ _SPONSORSHIP_LABELS = [
 
 class GreenhouseHandler(BaseHandler):
 
-    def apply(self, page: Any, profile: Any, resume_pdf: Path) -> ApplicationResult:
+    def apply(
+        self, page: Any, profile: Any, resume_pdf: Path,
+        company: str = "", title: str = "",
+    ) -> ApplicationResult:
+        self._company, self._title = company, title
         try:
             page.wait_for_selector("form", timeout=15_000)
         except Exception:
-            return self._hitl_pause("Form did not load within 15s")
+            return self._hitl_pause("Form did not load within 15s", company=self._company, title=self._title)
 
         self._fill_if_present(page, 'input[name="first_name"]', profile.first_name)
         self._fill_if_present(page, 'input[name="last_name"]', profile.last_name)
@@ -38,7 +42,7 @@ class GreenhouseHandler(BaseHandler):
 
         textareas = self._has_visible_textareas(page)
         if textareas:
-            return self._hitl_pause(f"{len(textareas)} open-ended textarea(s) detected")
+            return self._hitl_pause(f"{len(textareas)} open-ended textarea(s) detected", company=self._company, title=self._title)
 
         return self._submit(page)
 
@@ -76,7 +80,7 @@ class GreenhouseHandler(BaseHandler):
             'input[type="submit"], button[type="submit"], button[data-qa="btn-submit"]'
         )
         if not submit:
-            return self._hitl_pause("Could not locate submit button")
+            return self._hitl_pause("Could not locate submit button", company=self._company, title=self._title)
         if not self.dry_run:
             submit.click()
             try:

@@ -8,11 +8,14 @@ from .base import BaseHandler, ApplicationResult
 class LeverHandler(BaseHandler):
     """Lever forms always include a free-text textarea — always triggers HITL."""
 
-    def apply(self, page: Any, profile: Any, resume_pdf: Path) -> ApplicationResult:
+    def apply(
+        self, page: Any, profile: Any, resume_pdf: Path,
+        company: str = "", title: str = "",
+    ) -> ApplicationResult:
         try:
             page.wait_for_selector("form", timeout=15_000)
         except Exception:
-            return self._hitl_pause("Form did not load")
+            return self._hitl_pause("Form did not load", company=company, title=title)
 
         self._fill_if_present(page, 'input[name="name"]', profile.full_name)
         self._fill_if_present(page, 'input[name="email"]', profile.email)
@@ -22,5 +25,6 @@ class LeverHandler(BaseHandler):
         self._upload_file(page, resume_pdf)
 
         return self._hitl_pause(
-            "Lever forms always contain an open-ended 'Additional information' textarea"
+            "Lever forms always contain an open-ended 'Additional information' textarea",
+            company=company, title=title,
         )
