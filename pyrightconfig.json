@@ -1,5 +1,7 @@
 {
   "pythonVersion": "3.11",
+  "pythonPlatform": "Darwin",
+  "pythonPath": "/Users/suherli/Repositories/job-apply-bot/.venv/bin/python",
   "venvPath": ".",
   "venv": ".venv",
   "include": ["."],

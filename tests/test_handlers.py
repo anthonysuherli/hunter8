@@ -2,12 +2,25 @@
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
-from handlers.base import BaseHandler, ApplicationResult
+
+from handlers import route
+from handlers.ashby import AshbyHandler
+from handlers.base import BaseHandler, ApplicationResult, FallbackHandler
+from handlers.greenhouse import GreenhouseHandler
+from handlers.lever import LeverHandler
 
 
 class ConcreteHandler(BaseHandler):
     def apply(self, _page: Any, _profile: Any, _resume_pdf: Path) -> ApplicationResult:
         return ApplicationResult.SUBMITTED
+
+
+def _make_page(textareas: int = 0) -> MagicMock:
+    page = MagicMock()
+    page.query_selector.return_value = MagicMock(is_visible=lambda: True)
+    ta_mocks = [MagicMock(is_visible=MagicMock(return_value=True)) for _ in range(textareas)]
+    page.query_selector_all.return_value = ta_mocks
+    return page
 
 
 def test_application_result_enum_values():
@@ -47,17 +60,6 @@ def test_hitl_pause_skip_returns_hitl(monkeypatch):
     assert result == ApplicationResult.HITL
 
 
-from handlers.greenhouse import GreenhouseHandler
-
-
-def _make_page(textareas: int = 0) -> MagicMock:
-    page = MagicMock()
-    page.query_selector.return_value = MagicMock(is_visible=lambda: True)
-    ta_mocks = [MagicMock(is_visible=MagicMock(return_value=True)) for _ in range(textareas)]
-    page.query_selector_all.return_value = ta_mocks
-    return page
-
-
 def test_greenhouse_auto_submits_when_no_textareas():
     handler = GreenhouseHandler(dry_run=False)
     page = _make_page(textareas=0)
@@ -90,10 +92,6 @@ def test_greenhouse_dry_run_does_not_click_submit():
     submit.click.assert_not_called()
 
 
-from handlers.ashby import AshbyHandler
-from handlers.lever import LeverHandler
-
-
 def test_ashby_auto_submits_when_no_textareas():
     handler = AshbyHandler(dry_run=False)
     page = _make_page(textareas=0)
@@ -116,12 +114,7 @@ def test_lever_always_hitl(monkeypatch):
     assert result == ApplicationResult.HITL
 
 
-from handlers import route
-from handlers.base import FallbackHandler
-
-
 def test_route_greenhouse():
-    from handlers.greenhouse import GreenhouseHandler
     h = route("https://job-boards.greenhouse.io/anthropic/jobs/12345")
     assert isinstance(h, GreenhouseHandler)
 
