@@ -1,5 +1,4 @@
 # tests/test_resume_builder.py
-from pathlib import Path
 from resume_builder import build_resume_pdf
 
 
