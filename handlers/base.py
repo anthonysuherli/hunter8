@@ -17,7 +17,10 @@ class BaseHandler(ABC):
         self.dry_run = dry_run
 
     @abstractmethod
-    def apply(self, page: Any, profile: Any, resume_pdf: Path) -> ApplicationResult:
+    def apply(
+        self, page: Any, profile: Any, resume_pdf: Path,
+        company: str = "", title: str = "",
+    ) -> ApplicationResult:
         ...
 
     def _fill_if_present(self, page: Any, selector: str, value: str) -> None:
@@ -58,8 +61,12 @@ class BaseHandler(ABC):
 
 
 class FallbackHandler(BaseHandler):
-    def apply(self, page: Any, profile: Any, resume_pdf: Path) -> ApplicationResult:
-        print("\n🔵 MANUAL: Browser open — complete the form, then:")
+    def apply(
+        self, page: Any, profile: Any, resume_pdf: Path,
+        company: str = "", title: str = "",
+    ) -> ApplicationResult:
+        print(f"\n🔵 MANUAL: {company} — {title}")
+        print("   Browser open — complete the form, then:")
         print("     Enter  → mark Applied  |  's' → skip  |  'e' → Error")
         choice = input("   → ").strip().lower()
         if choice == "e":

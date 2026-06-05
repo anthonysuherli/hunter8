@@ -114,7 +114,7 @@ def _process_one(
     page = context.new_page()
     try:
         page.goto(app.url, timeout=20_000, wait_until="domcontentloaded")
-        result = handler.apply(page, profile, resume_pdf)
+        result = handler.apply(page, profile, resume_pdf, company=app.company, title=app.title)
         prefix = "dry-run · " if dry_run else ""
         return result, f"{prefix}{ats_name}"
     except Exception:
