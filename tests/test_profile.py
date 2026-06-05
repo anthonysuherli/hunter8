@@ -1,5 +1,4 @@
 # tests/test_profile.py
-from pathlib import Path
 import pytest
 import openpyxl
 from candidate_profile import CandidateProfile, load_profile
