@@ -1,10 +1,23 @@
 # score.py
 from __future__ import annotations
 
+import json
+import logging
+import os
 import re
+import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 
+import click
+from dotenv import load_dotenv
+
+import db as dbmod
 from db import Job
+from gateway import Gateway
+
+load_dotenv()
+log = logging.getLogger(__name__)
 
 _TITLE_INCLUDE = re.compile(
     r"\b("
@@ -55,3 +68,74 @@ def passes_rules(job: Job) -> tuple[bool, str]:
     if loc and _NON_US.search(loc) and not _US_LOCATION.search(loc):
         return False, f"location not US: {loc!r}"
     return True, ""
+
+
+_SYSTEM = (
+    "You grade a job posting for a specific candidate. Reply with a JSON object: "
+    '{"grade": "A|B|C", "reasoning": str, "archetype": str, "comp_signal": str, '
+    '"red_flags": [str]}. Grade A = strong co-primary fit meeting hard constraints; '
+    "B = plausible with friction; C = weak. Use ONLY the candidate intent provided."
+)
+
+
+def grade_job(job: Job, *, intent_md: str, gateway: Gateway) -> Verdict:
+    user = (
+        f"# Candidate intent\n{intent_md}\n\n"
+        f"# Job posting\nCompany: {job.company}\nTitle: {job.title}\n"
+        f"Location: {job.location}\n\n{job.raw_text[:6000]}"
+    )
+    data = gateway.chat_json(_SYSTEM, user)
+    return Verdict(
+        grade=str(data.get("grade", "C")).strip().upper()[:1] or "C",
+        reasoning=str(data.get("reasoning", "")),
+        archetype=str(data.get("archetype", "")),
+        comp_signal=str(data.get("comp_signal", "")),
+        red_flags=list(data.get("red_flags", []) or []),
+    )
+
+
+def run_scoring(conn: sqlite3.Connection, *, intent_md: str, gateway: Gateway) -> None:
+    """Score every `discovered` job: rules first, then LLM. Updates status to
+    filtered_out / scored / score_error."""
+    for job in dbmod.jobs_by_status(conn, "discovered"):
+        ok, reason = passes_rules(job)
+        if not ok:
+            dbmod.set_score(conn, job.id, status="filtered_out", grade=None,
+                            reasoning=reason, archetype=None, comp_signal=None,
+                            red_flags=None)
+            continue
+        try:
+            v = grade_job(job, intent_md=intent_md, gateway=gateway)
+        except Exception as exc:  # noqa: BLE001 — visible, never a silent default
+            log.warning("scoring failed for %s: %s", job.title, exc)
+            dbmod.set_score(conn, job.id, status="score_error", grade=None,
+                            reasoning=str(exc)[:200], archetype=None,
+                            comp_signal=None, red_flags=None)
+            continue
+        dbmod.set_score(conn, job.id, status="scored", grade=v.grade,
+                        reasoning=v.reasoning, archetype=v.archetype,
+                        comp_signal=v.comp_signal,
+                        red_flags=json.dumps(v.red_flags))
+
+
+@click.command()
+@click.option("--db", "db_path", default=None, envvar="HUNTER8_DB_PATH", type=Path)
+@click.option("--intent", "intent_path", default="intent.md",
+              type=click.Path(exists=True, path_type=Path))
+def main(db_path: Path | None, intent_path: Path) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    key = os.getenv("AI_GATEWAY_API_KEY")
+    if not key:
+        raise SystemExit("AI_GATEWAY_API_KEY not set.")
+    model = os.getenv("HUNTER8_SCORER_MODEL", "anthropic/claude-sonnet-4.5")
+    gateway = Gateway(key, model=model)
+    conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
+    dbmod.init_db(conn)
+    run_scoring(conn, intent_md=intent_path.read_text(), gateway=gateway)
+    counts = {s: len(dbmod.jobs_by_status(conn, s))
+              for s in ("scored", "filtered_out", "score_error")}
+    click.echo(f"Scoring complete: {counts}")
+
+
+if __name__ == "__main__":
+    main()
