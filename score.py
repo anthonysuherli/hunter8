@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 import db as dbmod
 from db import Job
-from gateway import Gateway
+from gateway import Gateway, GatewayError
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -106,6 +106,14 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, gateway: Gateway) -
             continue
         try:
             v = grade_job(job, intent_md=intent_md, gateway=gateway)
+        except GatewayError as exc:
+            if "402" in str(exc) or "credit" in str(exc).lower():
+                raise  # fail-fast: out of credit — don't continue scoring
+            log.warning("scoring failed for %s: %s", job.title, exc)
+            dbmod.set_score(conn, job.id, status="score_error", grade=None,
+                            reasoning=str(exc)[:200], archetype=None,
+                            comp_signal=None, red_flags=None)
+            continue
         except Exception as exc:  # noqa: BLE001 — visible, never a silent default
             log.warning("scoring failed for %s: %s", job.title, exc)
             dbmod.set_score(conn, job.id, status="score_error", grade=None,

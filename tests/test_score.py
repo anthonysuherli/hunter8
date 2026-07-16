@@ -80,3 +80,15 @@ def test_run_scoring_marks_score_error(tmp_path):
     gw = _FakeGateway(exc=RuntimeError("gateway down"))
     score.run_scoring(conn, intent_md="intent", gateway=gw)
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
+
+
+def test_run_scoring_fails_fast_on_gateway_credit_error(tmp_path):
+    import pytest
+    from gateway import GatewayError
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, _job("AI Engineer"))
+    gw = _FakeGateway(exc=GatewayError("AI Gateway has no credit (402). Top up."))
+    with pytest.raises(GatewayError):
+        score.run_scoring(conn, intent_md="intent", gateway=gw)
+    assert len(dbmod.jobs_by_status(conn, "score_error")) == 0
