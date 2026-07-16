@@ -112,33 +112,3 @@ def append_application(
     link_cell.hyperlink = url
     wb.save(tracker_path)
     return r
-
-
-def append_application(
-    tracker_path: Path,
-    *,
-    company: str,
-    role: str,
-    city: str,
-    url: str,
-    priority: str = "A — strong fit",
-    why_fits: str = "",
-) -> int:
-    """Append a new 'To apply' row to the Apply Tracker sheet. Returns the new
-    Excel row number. Sets the Link cell's hyperlink so iter_applications picks
-    up the URL exactly as apply.py expects."""
-    wb = openpyxl.load_workbook(tracker_path)
-    ws = wb["Apply Tracker"]
-    r = ws.max_row + 1
-    ws.cell(r, COL_PRIORITY).value = priority
-    ws.cell(r, COL_STATUS).value = "To apply"
-    ws.cell(r, COL_COMPANY).value = company
-    ws.cell(r, COL_ROLE).value = role
-    ws.cell(r, COL_CITY).value = city
-    if why_fits:
-        ws.cell(r, 9).value = why_fits  # "Why it fits" column
-    link_cell = ws.cell(r, COL_LINK)
-    link_cell.value = "apply ▸"
-    link_cell.hyperlink = url
-    wb.save(tracker_path)
-    return r
