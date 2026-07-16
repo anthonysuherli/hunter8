@@ -6,3 +6,7 @@ __pycache__/
 dist/
 .DS_Store
 .env
+hunter8.db
+intent.md
+ML-AI-Roles-Tracker.xlsx
+apply-run-*.log

@@ -1,19 +1,162 @@
-# hunter8 discovery watchlist — seeded from delapan KB "Market & Role Intel".
-# Edit freely. `ats` ∈ greenhouse|ashby|lever; `board` is the ATS board token.
+# Finance-first watchlist for AI / quant / research engineer roles (NYC-heavy).
+# Tuned to Anthony's edge: production agentic AI × knowledge systems × institutional finance.
+# `ats` ∈ greenhouse|ashby|lever; `board` tokens verified live 2026-07-16.
+#
+# Not on public Greenhouse/Ashby/Lever (covered via tavily_queries instead):
+# Citadel, Citadel Securities, Two Sigma, D.E. Shaw, Millennium, Balyasny,
+# Bridgewater, HRT, SIG, Bloomberg, BlackRock, Goldman, JPM, Morgan Stanley.
+
 companies:
+  # --- Buy-side / prop / quant (primary) ---
+  # Optiver: resume was targeted here — board has AI Engineering Enablement Lead (NYC)
+  - name: Optiver
+    ats: greenhouse
+    board: optiverus
+    archetype: buy-side-ai
+  - name: Point72
+    ats: greenhouse
+    board: point72
+    archetype: buy-side-ai
+  - name: Jane Street
+    ats: greenhouse
+    board: janestreet
+    archetype: buy-side-ai
+  - name: Schonfeld
+    ats: greenhouse
+    board: schonfeld
+    archetype: buy-side-ai
+  - name: Jump Trading
+    ats: greenhouse
+    board: jumptrading
+    archetype: buy-side-ai
+  - name: IMC
+    ats: greenhouse
+    board: imc
+    archetype: buy-side-ai
+  - name: WorldQuant
+    ats: greenhouse
+    board: worldquant
+    archetype: buy-side-ai
+  - name: PDT Partners
+    ats: greenhouse
+    board: pdtpartners
+    archetype: buy-side-ai
+  - name: Man Group
+    ats: greenhouse
+    board: mangroup
+    archetype: buy-side-ai
+  - name: AQR
+    ats: greenhouse
+    board: aqr
+    archetype: buy-side-ai
+  - name: Engineers Gate
+    ats: greenhouse
+    board: engineersgate
+    archetype: buy-side-ai
+  - name: ExodusPoint
+    ats: greenhouse
+    board: exoduspoint
+    archetype: buy-side-ai
+  - name: Akuna Capital
+    ats: greenhouse
+    board: akunacapital
+    archetype: buy-side-ai
+  - name: Flow Traders
+    ats: greenhouse
+    board: flowtraders
+    archetype: buy-side-ai
+  - name: Virtu
+    ats: greenhouse
+    board: virtu
+    archetype: buy-side-ai
+
+  # --- VC / growth / private equity (public ATS boards; NYC-heavy) ---
+  # Big-brand PE (Blackstone, KKR, Apollo, Carlyle) run Workday — see tavily_queries.
+  - name: General Atlantic
+    ats: greenhouse
+    board: generalatlantic
+    archetype: vc-pe
+  - name: a16z
+    ats: greenhouse
+    board: a16z
+    archetype: vc-pe
+  - name: General Catalyst
+    ats: greenhouse
+    board: generalcatalyst
+    archetype: vc-pe
+  - name: Bessemer Venture Partners
+    ats: greenhouse
+    board: bessemerventurepartners
+    archetype: vc-pe
+  - name: iCapital
+    ats: greenhouse
+    board: icapitalnetwork
+    archetype: vc-pe
+  - name: Arch
+    ats: ashby
+    board: arch
+    archetype: vc-pe
+
+  # --- Bank / asset-manager adjacent buy-side (public boards) ---
+  - name: Tower Research
+    ats: greenhouse
+    board: towerresearchcapital
+    archetype: buy-side-ai
+  - name: DRW
+    ats: greenhouse
+    board: drweng
+    archetype: buy-side-ai
+  - name: Marshall Wace
+    ats: greenhouse
+    board: marshallwace
+    archetype: buy-side-ai
+
+  # --- AI × finance product companies (co-primary) ---
   - name: Hebbia
     ats: ashby
-    board: hebbia
+    board: hebbia-ai
     archetype: ai-finance-startup
   - name: Rogo
     ats: ashby
     board: rogo
     archetype: ai-finance-startup
-  - name: Anthropic
+  - name: AlphaSense
     ats: greenhouse
-    board: anthropic
-    archetype: lab
+    board: alphasense
+    archetype: ai-finance-startup
+  - name: Harvey
+    ats: ashby
+    board: harvey
+    archetype: ai-finance-startup
+  - name: Ramp
+    ats: ashby
+    board: ramp
+    archetype: ai-finance-startup
+  - name: Brex
+    ats: greenhouse
+    board: brex
+    archetype: ai-finance-startup
+  - name: Sardine
+    ats: ashby
+    board: sardine
+    archetype: ai-finance-startup
+
 tavily_queries:
-  - '"research engineer" agentic AI hiring 2026'
-  - 'ML engineer "knowledge graph" fintech job posting 2026'
-  - '"applied AI" engineer LLM RAG remote US job'
+  # Firms without public ATS boards (NYC / US)
+  - 'Citadel OR "Citadel Securities" ("machine learning" OR "AI engineer" OR "research engineer") (NYC OR "New York") job 2026'
+  - '"Two Sigma" OR "D.E. Shaw" OR Millennium ("machine learning" OR "ML engineer" OR "quant researcher") (NYC OR "New York") hiring'
+  - 'Bloomberg OR BlackRock OR "Goldman Sachs" OR "JPMorgan" ("AI engineer" OR "ML engineer" OR "knowledge graph" OR agentic) (NYC OR "New York") job'
+  - 'Balyasny OR Bridgewater OR "Hudson River Trading" OR Susquehanna ("machine learning" OR "AI research") (NYC OR "New York") careers'
+  # Role-shaped long tail matching agentic + knowledge systems in finance
+  - '"knowledge graph" OR "enterprise knowledge" OR RAG (engineer OR researcher) (fintech OR "hedge fund" OR "asset management") (NYC OR "New York") job'
+  - '"agentic" OR "multi-agent" OR "AI platform" engineer (finance OR fintech OR "investment management") (NYC OR "New York" OR remote US) hiring 2026'
+  - '"AI Engineering Enablement" OR "Developer Advocate" OR "Developer Advocacy" AI (finance OR trading OR "hedge fund" OR Optiver OR Citadel) (NYC OR "New York" OR Chicago) job'
+  # --- Banks & asset managers (Workday-hosted; no public ATS API) ---
+  - 'BlackRock ("AI engineer" OR "machine learning" OR "Aladdin" OR "generative AI" OR agentic) ("New York" OR NYC) careers 2026'
+  - '"Morgan Stanley" OR "Goldman Sachs" OR "JPMorgan" ("machine learning engineer" OR "AI engineer" OR "applied AI" OR "GenAI") ("New York" OR NYC) job 2026'
+  - '"Bank of America" OR Citi OR "Wells Fargo" OR "Deutsche Bank" ("AI engineer" OR "machine learning" OR "LLM" OR agentic) ("New York" OR NYC) hiring'
+  - 'Fidelity OR "Capital Group" OR PIMCO OR Wellington OR "State Street" ("AI engineer" OR "machine learning engineer" OR "GenAI") ("New York" OR "New Jersey" OR remote US) job'
+  # --- Private equity / VC (large brands on Workday or bespoke portals) ---
+  - 'Blackstone OR KKR OR "Apollo Global" OR Carlyle OR "TPG" ("AI engineer" OR "machine learning" OR "data science" OR "generative AI") ("New York" OR NYC) careers 2026'
+  - '"Insight Partners" OR "Thrive Capital" OR Coatue OR "Tiger Global" OR "Vista Equity" ("AI engineer" OR "machine learning" OR "applied AI" OR "platform engineer") ("New York" OR NYC) job'
+  - '(venture capital OR "private equity" OR "growth equity") "AI engineer" OR "machine learning" OR "AI platform" (portfolio OR "in-house") ("New York" OR NYC) hiring 2026'
