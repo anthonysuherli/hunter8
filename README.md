@@ -13,6 +13,22 @@ cp .env.example .env
 # edit .env — set TRACKER_PATH to your ML-AI-Roles-Tracker.xlsx path
 ```
 
+## Discovery → Triage → Apply
+
+The full loop, upstream of the existing apply step:
+
+```bash
+python sync_intent.py     # 1. pull your profile/positioning from delapan → intent.md
+python discover.py        # 2. poll watchlist ATS boards + Tavily → hunter8.db
+python score.py           # 3. rules pre-filter + LLM grade (A/B/C) against intent.md
+python triage.py          # 4. review scored jobs; approve → tracker "To apply" rows
+python apply.py           # 5. (existing) submit the approved rows
+```
+
+- Edit `watchlist.yaml` to control which companies/boards and web queries are polled.
+- Requires `AI_GATEWAY_API_KEY` (scoring) and `TAVILY_API_KEY` (web discovery);
+  `sync_intent.py` needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for the delapan KB.
+
 ## Usage
 
 ```bash
