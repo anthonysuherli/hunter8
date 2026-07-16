@@ -1,0 +1,19 @@
+# hunter8 discovery watchlist — seeded from delapan KB "Market & Role Intel".
+# Edit freely. `ats` ∈ greenhouse|ashby|lever; `board` is the ATS board token.
+companies:
+  - name: Hebbia
+    ats: ashby
+    board: hebbia
+    archetype: ai-finance-startup
+  - name: Rogo
+    ats: ashby
+    board: rogo
+    archetype: ai-finance-startup
+  - name: Anthropic
+    ats: greenhouse
+    board: anthropic
+    archetype: lab
+tavily_queries:
+  - '"research engineer" agentic AI hiring 2026'
+  - 'ML engineer "knowledge graph" fintech job posting 2026'
+  - '"applied AI" engineer LLM RAG remote US job'
