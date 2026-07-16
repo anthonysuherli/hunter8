@@ -101,11 +101,13 @@ def _process_one(
 
     resume_pdf: Path | None = None
     if app.resume_path:
-        md_path = Path(app.resume_path)
-        if md_path.exists():
-            resume_pdf = build_resume_pdf(md_path, tmp_dir)
+        resume_path = Path(app.resume_path)
+        if resume_path.exists() and resume_path.suffix.lower() == ".pdf":
+            resume_pdf = resume_path
+        elif resume_path.exists():
+            resume_pdf = build_resume_pdf(resume_path, tmp_dir)
         else:
-            log.warning("Resume md not found: %s", md_path)
+            log.warning("Resume not found: %s", resume_path)
 
     if resume_pdf is None:
         log.warning("No resume PDF for row %d — proceeding without upload", app.excel_row)

@@ -23,12 +23,14 @@ class Gateway:
     def chat_json(self, system: str, user: str) -> dict:
         """One chat turn expected to return a JSON object. Raises GatewayError with
         a clear message on 402 (out of credit) or unparseable output."""
+        # Some gateway models reject response_format; ask for JSON in the prompt
+        # and parse (strip markdown fences if present).
+        sys = system + "\n\nRespond with a single JSON object only. No markdown."
         try:
             comp = self._client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "system", "content": system},
+                messages=[{"role": "system", "content": sys},
                           {"role": "user", "content": user}],
-                response_format={"type": "json_object"},
                 temperature=0.2,
             )
         except openai.APIStatusError as exc:
@@ -39,8 +41,19 @@ class Gateway:
                 ) from exc
             raise GatewayError(f"AI Gateway error: {exc}") from exc
 
-        content = comp.choices[0].message.content or ""
+        content = (comp.choices[0].message.content or "").strip()
+        if content.startswith("```"):
+            content = content.strip("`")
+            if content.startswith("json"):
+                content = content[4:].strip()
         try:
             return json.loads(content)
         except json.JSONDecodeError as exc:
+            # Last resort: extract first {...} block
+            start, end = content.find("{"), content.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    return json.loads(content[start : end + 1])
+                except json.JSONDecodeError:
+                    pass
             raise GatewayError(f"Gateway returned non-JSON: {content[:200]!r}") from exc
