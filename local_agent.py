@@ -51,6 +51,12 @@ class LocalAgent:
                                  {"role": "user", "content": user}],
                     "format": _SCHEMA,
                     "stream": False,
+                    # Measured on qwen3:30b-a3b: reasoning tokens cost ~16s/job
+                    # versus ~1.5s without, and made the screen *more* restrictive
+                    # (an agentic-AI role scored 15 thinking, 85 not) — the wrong
+                    # direction for a filter meant to defer the real call to Claude.
+                    # Ignored by models that don't reason.
+                    "think": False,
                     "options": {"temperature": 0.2},
                 },
                 timeout=self.timeout,

@@ -51,6 +51,22 @@ def test_posts_to_ollama_chat_endpoint(monkeypatch):
     assert roles == ["system", "user"]
 
 
+def test_reasoning_is_disabled(monkeypatch):
+    """Screening is a filter, not a deliberation. Reasoning tokens cost ~10x the
+    wall-clock and made the screen more restrictive, not more accurate."""
+    capture = {}
+    _run(monkeypatch, _reply('{"fit_score": 1, "reason": "r"}'), capture)
+    assert capture["json"]["think"] is False
+
+
+def test_reply_shape_is_constrained_by_schema(monkeypatch):
+    capture = {}
+    _run(monkeypatch, _reply('{"fit_score": 1, "reason": "r"}'), capture)
+    fmt = capture["json"]["format"]
+    assert fmt["required"] == ["fit_score", "reason"]
+    assert fmt["properties"]["fit_score"]["maximum"] == 100
+
+
 def test_connection_refused_is_unavailable(monkeypatch):
     def fake_post(url, json=None, timeout=None):
         raise httpx.ConnectError("refused")
