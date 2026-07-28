@@ -12,9 +12,10 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
+import claude_agent
 import db as dbmod
+from claude_agent import ClaudeAgent, ClaudeUnavailable
 from db import Job
-from gateway import Gateway, GatewayError
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -78,13 +79,13 @@ _SYSTEM = (
 )
 
 
-def grade_job(job: Job, *, intent_md: str, gateway: Gateway) -> Verdict:
+def grade_job(job: Job, *, intent_md: str, agent: ClaudeAgent) -> Verdict:
     user = (
         f"# Candidate intent\n{intent_md}\n\n"
         f"# Job posting\nCompany: {job.company}\nTitle: {job.title}\n"
         f"Location: {job.location}\n\n{job.raw_text[:6000]}"
     )
-    data = gateway.chat_json(_SYSTEM, user)
+    data = agent.chat_json(_SYSTEM, user)
     return Verdict(
         grade=str(data.get("grade", "C")).strip().upper()[:1] or "C",
         reasoning=str(data.get("reasoning", "")),
@@ -94,7 +95,7 @@ def grade_job(job: Job, *, intent_md: str, gateway: Gateway) -> Verdict:
     )
 
 
-def run_scoring(conn: sqlite3.Connection, *, intent_md: str, gateway: Gateway) -> None:
+def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent) -> None:
     """Score every `discovered` job: rules first, then LLM. Updates status to
     filtered_out / scored / score_error."""
     for job in dbmod.jobs_by_status(conn, "discovered"):
@@ -105,15 +106,9 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, gateway: Gateway) -
                             red_flags=None)
             continue
         try:
-            v = grade_job(job, intent_md=intent_md, gateway=gateway)
-        except GatewayError as exc:
-            if "402" in str(exc) or "credit" in str(exc).lower():
-                raise  # fail-fast: out of credit — don't continue scoring
-            log.warning("scoring failed for %s: %s", job.title, exc)
-            dbmod.set_score(conn, job.id, status="score_error", grade=None,
-                            reasoning=str(exc)[:200], archetype=None,
-                            comp_signal=None, red_flags=None)
-            continue
+            v = grade_job(job, intent_md=intent_md, agent=agent)
+        except ClaudeUnavailable:
+            raise  # fail-fast: not logged in or out of quota — every job would fail
         except Exception as exc:  # noqa: BLE001 — visible, never a silent default
             log.warning("scoring failed for %s: %s", job.title, exc)
             dbmod.set_score(conn, job.id, status="score_error", grade=None,
@@ -132,14 +127,11 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, gateway: Gateway) -
               type=click.Path(exists=True, path_type=Path))
 def main(db_path: Path | None, intent_path: Path) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    key = os.getenv("AI_GATEWAY_API_KEY")
-    if not key:
-        raise SystemExit("AI_GATEWAY_API_KEY not set.")
-    model = os.getenv("HUNTER8_SCORER_MODEL", "anthropic/claude-sonnet-4.5")
-    gateway = Gateway(key, model=model)
+    agent = ClaudeAgent(
+        model=os.getenv("HUNTER8_SCORER_MODEL", claude_agent.DEFAULT_MODEL))
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
     dbmod.init_db(conn)
-    run_scoring(conn, intent_md=intent_path.read_text(), gateway=gateway)
+    run_scoring(conn, intent_md=intent_path.read_text(), agent=agent)
     counts = {s: len(dbmod.jobs_by_status(conn, s))
               for s in ("scored", "filtered_out", "score_error")}
     click.echo(f"Scoring complete: {counts}")
