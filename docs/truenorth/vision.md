@@ -73,8 +73,13 @@ carries the matches you approve through to a submitted application.
 - The rules pre-filter's 89% kill rate has been sampled, and its false-negative
   rate is known and judged acceptable.
 - On a labeled sample, the local scorer rarely discards a job Claude would have
-  graded A — the tier boundary is trustworthy. *Threshold deliberately unset:
-  measure the local/Claude agreement first, then write the number in here.*
+  graded A — the tier boundary is trustworthy. **Measured 2026-07-28** against
+  the 85 Claude-graded jobs (8 A, 25 B, 52 C) using `qwen3:30b-a3b`: at a
+  threshold of 65, A-recall is **100%**, A+B recall 85%, and 40% of the corpus
+  is promoted. Threshold set to 65 rather than the highest-100% value of 70,
+  buying margin on a small sample (n=8 A) and 9 points of B-recall for 4 points
+  of extra corpus. Re-measure with `calibrate.py` whenever the model or
+  `intent.md` changes.
 
 ## Planned Detours
 
