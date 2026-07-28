@@ -74,12 +74,18 @@ carries the matches you approve through to a submitted application.
   rate is known and judged acceptable.
 - On a labeled sample, the local scorer rarely discards a job Claude would have
   graded A — the tier boundary is trustworthy. **Measured 2026-07-28** against
-  the 85 Claude-graded jobs (8 A, 25 B, 52 C) using `qwen3:30b-a3b`: at a
-  threshold of 65, A-recall is **100%**, A+B recall 85%, and 40% of the corpus
-  is promoted. Threshold set to 65 rather than the highest-100% value of 70,
-  buying margin on a small sample (n=8 A) and 9 points of B-recall for 4 points
-  of extra corpus. Re-measure with `calibrate.py` whenever the model or
+  97 Claude-graded jobs (14 A, 28 B, 55 C) using `qwen3:30b-a3b`: at a threshold
+  of 65, A-recall is **100%**, A+B recall 83%, and 48% of the corpus is
+  promoted. 100% A-recall holds to 70 and breaks at 75 (86%). Threshold set to
+  65 for margin. Re-measure with `calibrate.py` whenever the model or
   `intent.md` changes.
+
+  *Rejected experiment, same date:* the screen promotes explicitly non-US jobs
+  (London, Singapore, Budapest) that the rubric disqualifies outright. Making
+  the prompt check disqualifiers first did suppress them — and dropped A-recall
+  from 100% to 71%. Keep the noise. A wrongly promoted job costs one ~$0.008
+  Claude call and is caught; a wrongly rejected A-grade is lost silently and
+  forever. Do not re-attempt this without a way to measure both directions.
 
 ## Planned Detours
 
