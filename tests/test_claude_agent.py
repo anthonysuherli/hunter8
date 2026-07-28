@@ -49,6 +49,9 @@ def test_invokes_headless_claude_with_prompt_on_stdin(monkeypatch):
     _run(monkeypatch, _Proc(stdout=_envelope('{"grade": "A"}')), capture)
     argv = capture["argv"]
     assert argv[0] == "claude" and "-p" in argv
+    # Without this the call inherits the user's hooks, skills and CLAUDE.md —
+    # a Stop hook's message once came back as the model's reply.
+    assert "--safe-mode" in argv
     assert argv[argv.index("--output-format") + 1] == "json"
     assert argv[argv.index("--model") + 1] == claude_agent.DEFAULT_MODEL
     assert capture["input"] == "user"

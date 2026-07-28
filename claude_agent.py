@@ -52,6 +52,13 @@ class ClaudeAgent:
         with an actionable message, or ClaudeUnavailable when the batch should stop."""
         argv = [
             "claude", "-p",
+            # A one-shot grading call must not inherit the interactive setup:
+            # a Stop hook once replaced the model's reply with its own message,
+            # and the harness context (CLAUDE.md, skills, MCP tools) cost ~43k
+            # tokens per call. safe-mode drops both — measured 43,119 -> 0
+            # cache-creation tokens — and unlike --bare it still uses the
+            # logged-in subscription rather than requiring an API key.
+            "--safe-mode",
             "--output-format", "json",
             "--model", self.model,
             "--effort", self.effort,
