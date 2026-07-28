@@ -92,8 +92,9 @@ def main(db_path: Path | None, limit: int | None, intent_path: Path) -> None:
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
     dbmod.init_db(conn)
     run_scoring(conn, intent_md=intent_path.read_text(), agent=agent, limit=limit)
+    # screened_in is the remaining queue — the number a capped run left behind.
     counts = {s: len(dbmod.jobs_by_status(conn, s))
-              for s in ("scored", "filtered_out", "score_error")}
+              for s in ("scored", "screened_in", "score_error")}
     click.echo(f"Scoring complete: {counts}")
 
 
