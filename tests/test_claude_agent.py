@@ -95,6 +95,35 @@ def test_error_envelope_raises(monkeypatch):
         _run(monkeypatch, proc)
 
 
+def test_config_error_stops_the_batch(monkeypatch):
+    """A request rejected before reaching the model — a bad model name, say —
+    costs nothing and will fail identically for every job, so stop the batch
+    instead of marking hundreds of jobs score_error one at a time."""
+    body = json.dumps({
+        "is_error": True, "subtype": "error", "terminal_reason": "api_error",
+        "result": "", "usage": {"input_tokens": 0, "output_tokens": 0,
+                                "cache_creation_input_tokens": 0,
+                                "cache_read_input_tokens": 0},
+    })
+    with pytest.raises(claude_agent.ClaudeUnavailable) as ei:
+        _run(monkeypatch, _Proc(stdout=body))
+    assert "HUNTER8_SCORER_MODEL" in str(ei.value)
+
+
+def test_api_error_that_burned_tokens_is_per_job(monkeypatch):
+    """Tokens were spent, so the model saw it — that is about this job's
+    content, not the configuration. Mark it and keep going."""
+    body = json.dumps({
+        "is_error": True, "subtype": "error", "terminal_reason": "api_error",
+        "result": "overloaded", "usage": {"input_tokens": 1200, "output_tokens": 0,
+                                          "cache_creation_input_tokens": 0,
+                                          "cache_read_input_tokens": 0},
+    })
+    with pytest.raises(claude_agent.ClaudeError) as ei:
+        _run(monkeypatch, _Proc(stdout=body))
+    assert not isinstance(ei.value, claude_agent.ClaudeUnavailable)
+
+
 def test_unparseable_result_raises(monkeypatch):
     with pytest.raises(claude_agent.ClaudeError) as ei:
         _run(monkeypatch, _Proc(stdout=_envelope("not json at all")))

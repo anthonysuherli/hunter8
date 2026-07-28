@@ -87,6 +87,19 @@ class ClaudeAgent:
                 f"claude returned non-JSON envelope: {proc.stdout[:200]!r}") from exc
 
         if envelope.get("is_error") or envelope.get("subtype") != "success":
+            usage = envelope.get("usage") or {}
+            spent = sum(int(usage.get(k) or 0) for k in (
+                "input_tokens", "output_tokens",
+                "cache_creation_input_tokens", "cache_read_input_tokens"))
+            if envelope.get("terminal_reason") == "api_error" and spent == 0:
+                # The request never reached the model and cost nothing, so this
+                # is configuration rather than anything about this job. Every
+                # remaining job would fail identically — stop the batch.
+                raise ClaudeUnavailable(
+                    f"claude rejected the request before calling the model "
+                    f"(model={self.model!r}). Check HUNTER8_SCORER_MODEL: a "
+                    f"provider-prefixed name like 'anthropic/claude-sonnet-4.5' "
+                    f"is a gateway-era string the CLI does not accept.")
             raise _classify(
                 str(envelope.get("result") or envelope.get("subtype")), proc.returncode)
 
