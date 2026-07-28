@@ -20,16 +20,27 @@ The full loop, upstream of the existing apply step:
 ```bash
 python sync_intent.py     # 1. pull your profile/positioning from delapan → intent.md
 python discover.py        # 2. poll watchlist ATS boards + Tavily → hunter8.db
-python score.py           # 3. rules pre-filter + Claude grade (A/B/C) against intent.md
-python triage.py          # 4. review scored jobs; approve → tracker "To apply" rows
-python apply.py           # 5. (existing) submit the approved rows
+python screen.py          # 3. local model grades every job 0-100 against rubric.md
+python score.py           # 4. Claude grades the survivors (A/B/C)
+python triage.py          # 5. review scored jobs; approve → tracker "To apply" rows
+python apply.py           # 6. (existing) submit the approved rows
 ```
 
 - Edit `watchlist.yaml` to control which companies/boards and web queries are polled.
-- Scoring shells out to the local `claude` CLI in headless mode, so it runs on your
-  Claude Code subscription — no API key, no metered billing. Install Claude Code and
-  run `claude` once to log in. Override the model with `HUNTER8_SCORER_MODEL`
-  (default `claude-opus-5`).
+- Screening runs on a local Ollama model, so grading every discovered job costs
+  nothing. Install with `brew install ollama`, then `ollama pull <model>` and set
+  `HUNTER8_SCREEN_MODEL`. `screen.py` stops with instructions if Ollama is not
+  reachable — it never falls back to Claude, because promoting thousands of jobs
+  to the subscription tier would exhaust the quota.
+- `rubric.md` is distilled from `intent.md` by Claude on first run and reused
+  until `intent.md` changes. Read it — it is what the screen believes about you —
+  and hand-edit inside the `BEGIN human` / `END human` markers, which survive
+  regeneration.
+- Run `python calibrate.py` once to choose `HUNTER8_SCREEN_THRESHOLD` from the
+  jobs Claude has already graded, rather than guessing it.
+- `score.py --limit N` grades the N highest-scoring jobs. Use it for the first
+  bulk run: each Claude call carries ~43k tokens of harness overhead, so grading
+  hundreds of jobs in one sitting can exhaust the subscription quota.
 - Requires `TAVILY_API_KEY` (web discovery); `sync_intent.py` needs `SUPABASE_URL` +
   `SUPABASE_SERVICE_ROLE_KEY` for the delapan KB.
 

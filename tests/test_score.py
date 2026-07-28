@@ -7,31 +7,6 @@ def _job(title, location="Remote, US", url=None):
                source="ats:greenhouse", ats="greenhouse", raw_text="desc")
 
 
-def test_passes_rules_accepts_ml_engineer_remote():
-    ok, reason = score.passes_rules(_job("Machine Learning Engineer"))
-    assert ok is True
-
-
-def test_passes_rules_rejects_offtopic_title():
-    ok, reason = score.passes_rules(_job("Sales Development Representative"))
-    assert ok is False and "title" in reason.lower()
-
-
-def test_passes_rules_rejects_internship():
-    ok, reason = score.passes_rules(_job("ML Engineering Intern"))
-    assert ok is False
-
-
-def test_passes_rules_rejects_hft_core_cpp():
-    ok, reason = score.passes_rules(_job("C++ Low-Latency Trading Engineer"))
-    assert ok is False
-
-
-def test_passes_rules_rejects_non_us_location():
-    ok, reason = score.passes_rules(_job("ML Engineer", location="London, UK"))
-    assert ok is False and "location" in reason.lower()
-
-
 import db as dbmod
 
 
@@ -53,30 +28,32 @@ def test_grade_job_parses_verdict():
     assert v.grade == "A" and v.archetype == "ai-finance-startup"
 
 
-def test_run_scoring_filters_scores_and_flags_errors(tmp_path):
+def _screened(conn, title, score, url=None):
+    job = _job(title, url=url)
+    dbmod.insert_job(conn, job)
+    stored = [j for j in dbmod.jobs_by_status(conn, "discovered")
+              if j.url == job.url][0]
+    dbmod.set_screen(conn, stored.id, status="screened_in", fit_score=score,
+                     screen_reason="r")
+
+
+def test_run_scoring_grades_screened_in_jobs(tmp_path):
     conn = dbmod.connect(tmp_path / "h.db")
     dbmod.init_db(conn)
-    dbmod.insert_job(conn, _job("Machine Learning Engineer"))   # survives → scored
-    dbmod.insert_job(conn, _job("Sales Rep", location="Remote US"))  # filtered_out
-    from db import Job as J
-    dbmod.insert_job(conn, J(url="https://x/err", company="Acme", title="AI Engineer",
-                             location="Remote US", source="ats:greenhouse",
-                             ats="greenhouse", raw_text="d"))
+    _screened(conn, "Machine Learning Engineer", 80)
+    _screened(conn, "AI Engineer", 60)
 
     agent = _FakeAgent(verdict={
         "grade": "B", "reasoning": "ok", "archetype": "lab",
         "comp_signal": "", "red_flags": []})
-    # Making one job raise by swapping the agent per-call is overkill; assert the
-    # happy path here and the error paths in the tests below.
     score.run_scoring(conn, intent_md="intent", agent=agent)
     assert len(dbmod.jobs_by_status(conn, "scored")) == 2
-    assert len(dbmod.jobs_by_status(conn, "filtered_out")) == 1
 
 
 def test_run_scoring_marks_score_error(tmp_path):
     conn = dbmod.connect(tmp_path / "h.db")
     dbmod.init_db(conn)
-    dbmod.insert_job(conn, _job("AI Engineer"))
+    _screened(conn, "AI Engineer", 70)
     agent = _FakeAgent(exc=RuntimeError("agent down"))
     score.run_scoring(conn, intent_md="intent", agent=agent)
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
@@ -88,8 +65,24 @@ def test_run_scoring_fails_fast_when_agent_unavailable(tmp_path):
     from claude_agent import ClaudeUnavailable
     conn = dbmod.connect(tmp_path / "h.db")
     dbmod.init_db(conn)
-    dbmod.insert_job(conn, _job("AI Engineer"))
+    _screened(conn, "AI Engineer", 70)
     agent = _FakeAgent(exc=ClaudeUnavailable("claude usage limit reached"))
     with pytest.raises(ClaudeUnavailable):
         score.run_scoring(conn, intent_md="intent", agent=agent)
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 0
+
+
+def test_run_scoring_limit_takes_highest_fit_scores_first(tmp_path):
+    """A capped run must spend the quota on the most promising jobs."""
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "Low Fit AI Engineer", 30, url="https://x/low")
+    _screened(conn, "High Fit AI Engineer", 95, url="https://x/high")
+
+    agent = _FakeAgent(verdict={
+        "grade": "A", "reasoning": "ok", "archetype": "lab",
+        "comp_signal": "", "red_flags": []})
+    score.run_scoring(conn, intent_md="intent", agent=agent, limit=1)
+
+    scored = dbmod.jobs_by_status(conn, "scored")
+    assert len(scored) == 1 and scored[0].url == "https://x/high"

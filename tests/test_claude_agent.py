@@ -95,4 +95,4 @@ def test_error_envelope_raises(monkeypatch):
 def test_unparseable_result_raises(monkeypatch):
     with pytest.raises(claude_agent.ClaudeError) as ei:
         _run(monkeypatch, _Proc(stdout=_envelope("not json at all")))
-    assert "non-json" in str(ei.value).lower()
+    assert "no json object" in str(ei.value).lower()

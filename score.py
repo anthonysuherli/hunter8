@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,34 +19,6 @@ from db import Job
 load_dotenv()
 log = logging.getLogger(__name__)
 
-_TITLE_INCLUDE = re.compile(
-    r"\b("
-    r"machine learning|ml|ai|artificial intelligence|applied scientist|"
-    r"research engineer|applied research|mle|"
-    r"agent|agentic|llm|nlp|deep learning|data scientist"
-    r")\b",
-    re.I,
-)
-_TITLE_EXCLUDE = re.compile(
-    r"\b(intern|internship|sales|recruiter|marketing|account executive|"
-    r"low-latency|hft|c\+\+ core)\b",
-    re.I,
-)
-# US-remote or a US location; reject obviously non-US postings.
-_US_LOCATION = re.compile(
-    r"\b(remote|united states|usa|us\b|new york|nyc|san francisco|sf\b|"
-    r"boston|austin|seattle|chicago|los angeles|philadelphia|washington|"
-    r", ?(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|"
-    r"MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|"
-    r"SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b)",
-    re.I,
-)
-_NON_US = re.compile(
-    r"\b(london|uk|united kingdom|canada|toronto|india|bangalore|singapore|"
-    r"germany|berlin|france|paris|remote - emea|remote \(emea\))\b",
-    re.I,
-)
-
 
 @dataclass
 class Verdict:
@@ -56,19 +27,6 @@ class Verdict:
     archetype: str
     comp_signal: str
     red_flags: list[str]
-
-
-def passes_rules(job: Job) -> tuple[bool, str]:
-    """Cheap deterministic pre-filter. Returns (survives, reason-if-dropped)."""
-    title = job.title or ""
-    if _TITLE_EXCLUDE.search(title):
-        return False, f"title excluded: {title!r}"
-    if not _TITLE_INCLUDE.search(title):
-        return False, f"title not a target role: {title!r}"
-    loc = job.location or ""
-    if loc and _NON_US.search(loc) and not _US_LOCATION.search(loc):
-        return False, f"location not US: {loc!r}"
-    return True, ""
 
 
 _SYSTEM = (
@@ -95,16 +53,16 @@ def grade_job(job: Job, *, intent_md: str, agent: ClaudeAgent) -> Verdict:
     )
 
 
-def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent) -> None:
-    """Score every `discovered` job: rules first, then LLM. Updates status to
-    filtered_out / scored / score_error."""
-    for job in dbmod.jobs_by_status(conn, "discovered"):
-        ok, reason = passes_rules(job)
-        if not ok:
-            dbmod.set_score(conn, job.id, status="filtered_out", grade=None,
-                            reasoning=reason, archetype=None, comp_signal=None,
-                            red_flags=None)
-            continue
+def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
+                limit: int | None = None) -> None:
+    """Grade screened_in jobs with Claude, best fit first.
+
+    Ordering and `limit` matter: each Claude call carries ~43k tokens of harness
+    overhead, so a capped run must spend the quota on the most promising jobs
+    rather than on whatever id happens to be lowest."""
+    jobs = dbmod.jobs_by_status(conn, "screened_in",
+                                order_by="fit_score DESC", limit=limit)
+    for job in jobs:
         try:
             v = grade_job(job, intent_md=intent_md, agent=agent)
         except ClaudeUnavailable:
@@ -123,17 +81,20 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent)
 
 @click.command()
 @click.option("--db", "db_path", default=None, envvar="HUNTER8_DB_PATH", type=Path)
+@click.option("--limit", default=None, type=int,
+              help="Grade at most N jobs, highest fit_score first.")
 @click.option("--intent", "intent_path", default="intent.md",
               type=click.Path(exists=True, path_type=Path))
-def main(db_path: Path | None, intent_path: Path) -> None:
+def main(db_path: Path | None, limit: int | None, intent_path: Path) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     agent = ClaudeAgent(
         model=os.getenv("HUNTER8_SCORER_MODEL", claude_agent.DEFAULT_MODEL))
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
     dbmod.init_db(conn)
-    run_scoring(conn, intent_md=intent_path.read_text(), agent=agent)
+    run_scoring(conn, intent_md=intent_path.read_text(), agent=agent, limit=limit)
+    # screened_in is the remaining queue — the number a capped run left behind.
     counts = {s: len(dbmod.jobs_by_status(conn, s))
-              for s in ("scored", "filtered_out", "score_error")}
+              for s in ("scored", "screened_in", "score_error")}
     click.echo(f"Scoring complete: {counts}")
 
 
