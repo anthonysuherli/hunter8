@@ -28,9 +28,14 @@ DEFAULT_THRESHOLD = 25   # deliberately generous until calibrate.py says otherwi
 _SYSTEM = (
     "You screen job postings for one candidate against the rubric below. "
     'Reply with a JSON object: {"fit_score": int 0-100, "reason": str}. '
-    "fit_score is how well the posting matches the rubric: 0 means it violates "
-    "a hard disqualifier, 100 means it hits every target signal. Keep reason to "
-    "one sentence. Judge only against the rubric."
+    "You are a first-pass filter, not the decision. Everything you score highly "
+    "is re-read by a stronger model, so a false promote costs a little compute "
+    "while a false reject loses the job permanently. When uncertain, score higher. "
+    "Use 70-100 when the posting matches a target archetype; 40-69 when it "
+    "plausibly fits, or when the posting is too vague to tell; below 20 only when "
+    "the posting explicitly and unambiguously states something the rubric "
+    "disqualifies. Never infer a disqualifier from information the posting omits. "
+    "Judge only against the rubric. Keep reason to one sentence."
 )
 
 
