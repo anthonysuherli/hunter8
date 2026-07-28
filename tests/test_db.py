@@ -5,6 +5,17 @@ import db as dbmod
 from db import Job
 
 
+def _legacy_schema_sql():
+    """Pre-migration schema without fit_score, screen_reason, screened_at."""
+    return """CREATE TABLE jobs (
+             id INTEGER PRIMARY KEY, url TEXT UNIQUE NOT NULL,
+             company TEXT NOT NULL, title TEXT NOT NULL, location TEXT,
+             source TEXT NOT NULL, ats TEXT, posted_at TEXT, raw_text TEXT,
+             status TEXT NOT NULL, grade TEXT, reasoning TEXT, archetype TEXT,
+             comp_signal TEXT, red_flags TEXT, discovered_at TEXT NOT NULL,
+             scored_at TEXT, triaged_at TEXT);"""
+
+
 def _job(url="https://x/1", company="Acme", title="ML Engineer"):
     return dbmod.Job(url=url, company=company, title=title,
                      location="Remote US", source="ats:greenhouse", ats="greenhouse",
@@ -49,26 +60,22 @@ def test_set_triage_records_status(tmp_path):
 def test_init_db_migrates_legacy_table(tmp_path):
     """A database created before the screen columns existed gains them."""
     conn = dbmod.connect(tmp_path / "legacy.db")
-    conn.executescript(
-        """CREATE TABLE jobs (
-             id INTEGER PRIMARY KEY, url TEXT UNIQUE NOT NULL,
-             company TEXT NOT NULL, title TEXT NOT NULL, location TEXT,
-             source TEXT NOT NULL, ats TEXT, posted_at TEXT, raw_text TEXT,
-             status TEXT NOT NULL, grade TEXT, reasoning TEXT, archetype TEXT,
-             comp_signal TEXT, red_flags TEXT, discovered_at TEXT NOT NULL,
-             scored_at TEXT, triaged_at TEXT);"""
-    )
+    conn.executescript(_legacy_schema_sql())
     dbmod.init_db(conn)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(jobs)")}
     assert {"fit_score", "screen_reason", "screened_at"} <= cols
 
 
 def test_init_db_is_idempotent(tmp_path):
-    conn = dbmod.connect(tmp_path / "h.db")
+    """init_db must safely handle legacy databases called twice without error."""
+    conn = dbmod.connect(tmp_path / "legacy.db")
+    conn.executescript(_legacy_schema_sql())
+    # First call adds the migration columns via ALTER TABLE
     dbmod.init_db(conn)
-    dbmod.init_db(conn)          # must not raise "duplicate column name"
+    # Second call must not raise "duplicate column name"
+    dbmod.init_db(conn)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(jobs)")}
-    assert "fit_score" in cols
+    assert {"fit_score", "screen_reason", "screened_at"} <= cols
 
 
 def _screened(conn, url, score):
