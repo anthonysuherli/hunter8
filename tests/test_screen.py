@@ -61,6 +61,25 @@ def test_per_job_failure_marks_screen_error_and_continues(tmp_path):
     assert len(dbmod.jobs_by_status(conn, "screen_error")) == 2
 
 
+def test_limit_screens_newest_first(tmp_path):
+    """A capped run should cover what just came in, not the oldest backlog."""
+    conn = _conn(tmp_path, n=0)
+    for i, when in enumerate(["2020-01-01T00:00:00", "2026-07-28T00:00:00"]):
+        dbmod.insert_job(conn, Job(url=f"https://x/{i}", company="Acme",
+                                   title="ML Engineer", location="NYC",
+                                   source="ats:greenhouse", ats="greenhouse",
+                                   raw_text="build ml systems"))
+        conn.execute("UPDATE jobs SET discovered_at=? WHERE url=?",
+                     (when, f"https://x/{i}"))
+    conn.commit()
+
+    screen.run_screening(conn, rubric_text="r", agent=_FakeAgent(score=80),
+                         threshold=25, limit=1)
+
+    assert [j.url for j in dbmod.jobs_by_status(conn, "screened_in")] == ["https://x/1"]
+    assert len(dbmod.jobs_by_status(conn, "discovered")) == 1
+
+
 def test_unavailable_agent_stops_the_batch(tmp_path):
     conn = _conn(tmp_path, n=3)
     with pytest.raises(LocalUnavailable):

@@ -113,7 +113,7 @@ def _row_to_job(row: sqlite3.Row) -> Job:
 
 
 # Whitelisted so an order_by string can never carry SQL from a caller.
-_ORDER_BY = {"fit_score DESC", "fit_score ASC"}
+_ORDER_BY = {"fit_score DESC", "fit_score ASC", "discovered_at DESC"}
 
 
 def jobs_by_status(conn: sqlite3.Connection, status: str, *,
