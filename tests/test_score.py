@@ -72,6 +72,25 @@ def test_run_scoring_fails_fast_when_agent_unavailable(tmp_path):
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 0
 
 
+def test_run_scoring_since_filters_on_posting_date(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "Old AI Engineer", 90, url="https://x/old")
+    _screened(conn, "New AI Engineer", 80, url="https://x/new")
+    conn.execute("UPDATE jobs SET posted_at='2026-01-01T00:00:00+00:00' WHERE url='https://x/old'")
+    conn.execute("UPDATE jobs SET posted_at='2026-07-27T00:00:00+00:00' WHERE url='https://x/new'")
+    conn.commit()
+
+    agent = _FakeAgent(verdict={
+        "grade": "A", "reasoning": "ok", "archetype": "lab",
+        "comp_signal": "", "red_flags": []})
+    score.run_scoring(conn, intent_md="intent", agent=agent,
+                      posted_since="2026-07-21T00:00:00+00:00")
+
+    scored = dbmod.jobs_by_status(conn, "scored")
+    assert [j.url for j in scored] == ["https://x/new"]
+
+
 def test_run_scoring_limit_takes_highest_fit_scores_first(tmp_path):
     """A capped run must spend the quota on the most promising jobs."""
     conn = dbmod.connect(tmp_path / "h.db")
