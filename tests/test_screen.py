@@ -80,6 +80,44 @@ def test_limit_screens_newest_first(tmp_path):
     assert len(dbmod.jobs_by_status(conn, "discovered")) == 1
 
 
+def _posted(conn, url, posted_at):
+    dbmod.insert_job(conn, Job(url=url, company="Acme", title="ML Engineer",
+                               location="NYC", source="ats:greenhouse",
+                               ats="greenhouse", raw_text="build ml systems"))
+    conn.execute("UPDATE jobs SET posted_at=? WHERE url=?", (posted_at, url))
+    conn.commit()
+
+
+def test_since_days_keeps_only_recently_posted(tmp_path):
+    conn = _conn(tmp_path, n=0)
+    _posted(conn, "https://x/old", "2026-01-01T00:00:00+00:00")
+    _posted(conn, "https://x/new", "2026-07-27T00:00:00+00:00")
+
+    screen.run_screening(conn, rubric_text="r", agent=_FakeAgent(score=80),
+                         threshold=25, posted_since="2026-07-21T00:00:00+00:00")
+
+    assert [j.url for j in dbmod.jobs_by_status(conn, "screened_in")] == ["https://x/new"]
+    assert [j.url for j in dbmod.jobs_by_status(conn, "discovered")] == ["https://x/old"]
+
+
+def test_since_days_skips_jobs_with_no_posting_date(tmp_path):
+    """Web-search hits carry no posted_at — 'posted since X' can't be true of
+    an unknown date, so they are left queued rather than silently promoted."""
+    conn = _conn(tmp_path, n=0)
+    _posted(conn, "https://x/dated", "2026-07-27T00:00:00+00:00")
+    _posted(conn, "https://x/undated", "")
+
+    screen.run_screening(conn, rubric_text="r", agent=_FakeAgent(score=80),
+                         threshold=25, posted_since="2026-07-21T00:00:00+00:00")
+
+    assert [j.url for j in dbmod.jobs_by_status(conn, "discovered")] == ["https://x/undated"]
+
+
+def test_cutoff_none_means_no_date_filter():
+    assert screen._cutoff(None) is None
+    assert screen._cutoff(7).endswith("+00:00")
+
+
 def test_unavailable_agent_stops_the_batch(tmp_path):
     conn = _conn(tmp_path, n=3)
     with pytest.raises(LocalUnavailable):

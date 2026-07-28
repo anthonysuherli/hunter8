@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import click
@@ -39,6 +40,13 @@ _SYSTEM = (
 )
 
 
+def _cutoff(since_days: int | None) -> str | None:
+    """ISO timestamp N days back, or None for no date filter."""
+    if since_days is None:
+        return None
+    return (datetime.now(timezone.utc) - timedelta(days=since_days)).isoformat()
+
+
 def _prompt(job: Job, rubric_text: str) -> str:
     return (
         f"# Rubric\n{rubric_text}\n\n"
@@ -48,13 +56,15 @@ def _prompt(job: Job, rubric_text: str) -> str:
 
 
 def run_screening(conn: sqlite3.Connection, *, rubric_text: str, agent,
-                  threshold: int, limit: int | None = None) -> None:
+                  threshold: int, limit: int | None = None,
+                  posted_since: str | None = None) -> None:
     """Screen `discovered` jobs into screened_in / screened_out / screen_error.
 
     Newest first, so a capped run covers what just came in rather than whatever
     has been sitting in the backlog longest."""
     for job in dbmod.jobs_by_status(conn, "discovered",
-                                    order_by="discovered_at DESC", limit=limit):
+                                    order_by="discovered_at DESC", limit=limit,
+                                    posted_since=posted_since):
         try:
             data = agent.chat_json(_SYSTEM, _prompt(job, rubric_text))
             score = int(data.get("fit_score", 0))
@@ -80,17 +90,21 @@ def run_screening(conn: sqlite3.Connection, *, rubric_text: str, agent,
               envvar="HUNTER8_SCREEN_THRESHOLD")
 @click.option("--limit", default=None, type=int,
               help="Screen at most N jobs, newest first.")
+@click.option("--since-days", default=None, type=int,
+              help="Only jobs the board posted within the last N days. "
+                   "Skips web-search hits, which carry no posting date.")
 @click.option("--model", "model", default=None, envvar="HUNTER8_SCREEN_MODEL",
               required=True)
 def main(db_path: Path | None, intent_path: Path, rubric_path: Path,
-         threshold: int | None, limit: int | None, model: str) -> None:
+         threshold: int | None, limit: int | None, since_days: int | None,
+         model: str) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     rubric_text = rubricmod.load_or_build(intent_path, rubric_path, ClaudeAgent())
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
     dbmod.init_db(conn)
     run_screening(conn, rubric_text=rubric_text, agent=LocalAgent(model=model),
                   threshold=threshold if threshold is not None else DEFAULT_THRESHOLD,
-                  limit=limit)
+                  limit=limit, posted_since=_cutoff(since_days))
     counts = {s: len(dbmod.jobs_by_status(conn, s))
               for s in ("screened_in", "screened_out", "screen_error")}
     click.echo(f"Screening complete: {counts}")

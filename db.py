@@ -118,11 +118,21 @@ _ORDER_BY = {"fit_score DESC", "fit_score ASC", "discovered_at DESC"}
 
 def jobs_by_status(conn: sqlite3.Connection, status: str, *,
                    order_by: str | None = None,
-                   limit: int | None = None) -> list[Job]:
+                   limit: int | None = None,
+                   posted_since: str | None = None) -> list[Job]:
+    """Jobs in one status.
+
+    `posted_since` is an ISO timestamp and filters on the board's own posting
+    date. Jobs with no posted_at — web-search hits, which carry none — are
+    excluded by it, because "posted since X" cannot be true of an unknown date."""
     if order_by is not None and order_by not in _ORDER_BY:
         raise ValueError(f"order_by must be one of {sorted(_ORDER_BY)}, got {order_by!r}")
-    sql = f"SELECT * FROM jobs WHERE status=? ORDER BY {order_by or 'id'}"
+    sql = "SELECT * FROM jobs WHERE status=?"
     params: list = [status]
+    if posted_since is not None:
+        sql += " AND posted_at IS NOT NULL AND posted_at != '' AND posted_at >= ?"
+        params.append(posted_since)
+    sql += f" ORDER BY {order_by or 'id'}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
