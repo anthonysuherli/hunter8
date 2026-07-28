@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   red_flags     TEXT,
   discovered_at TEXT NOT NULL,
   scored_at     TEXT,
-  triaged_at    TEXT
+  triaged_at    TEXT,
+  fit_score     INTEGER,
+  screen_reason TEXT,
+  screened_at   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 """
@@ -53,6 +56,9 @@ class Job:
     discovered_at: str | None = None
     scored_at: str | None = None
     triaged_at: str | None = None
+    fit_score: int | None = None
+    screen_reason: str | None = None
+    screened_at: str | None = None
 
 
 def _now() -> str:
@@ -65,8 +71,24 @@ def connect(path: str | Path = DEFAULT_DB) -> sqlite3.Connection:
     return conn
 
 
+_MIGRATIONS = {
+    "fit_score": "INTEGER",
+    "screen_reason": "TEXT",
+    "screened_at": "TEXT",
+}
+
+
 def init_db(conn: sqlite3.Connection) -> None:
+    """Create the schema, then add any columns a pre-existing database lacks.
+
+    `CREATE TABLE IF NOT EXISTS` will not add columns to a table that already
+    exists, so databases created before the screen tier need an explicit ALTER.
+    Idempotent — safe on every startup."""
     conn.executescript(_SCHEMA)
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(jobs)")}
+    for column, decl in _MIGRATIONS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} {decl}")
     conn.commit()
 
 
@@ -90,11 +112,31 @@ def _row_to_job(row: sqlite3.Row) -> Job:
     return Job(**{k: row[k] for k in row.keys() if k in names})
 
 
-def jobs_by_status(conn: sqlite3.Connection, status: str) -> list[Job]:
-    rows = conn.execute(
-        "SELECT * FROM jobs WHERE status=? ORDER BY id", (status,)
-    ).fetchall()
-    return [_row_to_job(r) for r in rows]
+# Whitelisted so an order_by string can never carry SQL from a caller.
+_ORDER_BY = {"fit_score DESC", "fit_score ASC"}
+
+
+def jobs_by_status(conn: sqlite3.Connection, status: str, *,
+                   order_by: str | None = None,
+                   limit: int | None = None) -> list[Job]:
+    if order_by is not None and order_by not in _ORDER_BY:
+        raise ValueError(f"order_by must be one of {sorted(_ORDER_BY)}, got {order_by!r}")
+    sql = f"SELECT * FROM jobs WHERE status=? ORDER BY {order_by or 'id'}"
+    params: list = [status]
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+    return [_row_to_job(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def set_screen(conn: sqlite3.Connection, job_id: int, *, status: str,
+               fit_score: int | None, screen_reason: str | None) -> None:
+    conn.execute(
+        """UPDATE jobs SET status=?, fit_score=?, screen_reason=?, screened_at=?
+           WHERE id=?""",
+        (status, fit_score, screen_reason, _now(), job_id),
+    )
+    conn.commit()
 
 
 def set_score(
