@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import subprocess
 
+import json_reply
+
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_EFFORT = "medium"
 
@@ -36,25 +38,6 @@ def _classify(text: str, returncode: int) -> ClaudeError:
     if any(m in lowered for m in _FATAL_MARKERS):
         return ClaudeUnavailable(f"claude unavailable: {(text or '').strip()[:200]}")
     return ClaudeError(f"claude failed (exit {returncode}): {(text or '').strip()[:200]}")
-
-
-def _parse_object(content: str) -> dict:
-    """Pull a JSON object out of the model's reply, tolerating markdown fences."""
-    content = content.strip()
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.startswith("json"):
-            content = content[4:].strip()
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as exc:
-        start, end = content.find("{"), content.rfind("}")
-        if start >= 0 and end > start:
-            try:
-                return json.loads(content[start:end + 1])
-            except json.JSONDecodeError:
-                pass
-        raise ClaudeError(f"claude returned non-JSON: {content[:200]!r}") from exc
 
 
 class ClaudeAgent:
@@ -100,4 +83,7 @@ class ClaudeAgent:
             raise _classify(
                 str(envelope.get("result") or envelope.get("subtype")), proc.returncode)
 
-        return _parse_object(envelope.get("result") or "")
+        try:
+            return json_reply.parse_object(envelope.get("result") or "")
+        except ValueError as exc:
+            raise ClaudeError(str(exc)) from exc
