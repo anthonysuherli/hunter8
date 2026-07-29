@@ -6,7 +6,8 @@ from pathlib import Path
 
 import yaml
 
-_VALID_ATS = {"greenhouse", "ashby", "lever"}
+# workday boards are "tenant/server/site"; eightfold boards are "sub/domain".
+_VALID_ATS = {"greenhouse", "ashby", "lever", "workday", "eightfold"}
 
 
 @dataclass

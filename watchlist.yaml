@@ -1,10 +1,21 @@
-# Finance-first watchlist for AI / quant / research engineer roles (NYC-heavy).
-# Tuned to Anthony's edge: production agentic AI × knowledge systems × institutional finance.
-# `ats` ∈ greenhouse|ashby|lever; `board` tokens verified live 2026-07-16.
+# Watchlist for AI / agentic-systems / research engineer roles (NYC-heavy).
+# Tuned to Anthony's edge: production agentic AI × evaluation × regulated
+# enterprise deployment — with institutional finance as domain depth, not the
+# only axis. `ats` ∈ greenhouse|ashby|lever.
 #
-# Not on public Greenhouse/Ashby/Lever (covered via tavily_queries instead):
-# Citadel, Citadel Securities, Two Sigma, D.E. Shaw, Millennium, Balyasny,
-# Bridgewater, HRT, SIG, Bloomberg, BlackRock, Goldman, JPM, Morgan Stanley.
+# Slugs verified live: finance + VC blocks 2026-07-16; everything below the
+# "expansion" marker 2026-07-28 (probed against the live ATS APIs, only slugs
+# returning >0 postings were kept).
+#
+# Confirmed NOT on any public Greenhouse/Ashby/Lever board as of 2026-07-28 —
+# every plausible slug variant 404s, so these are reachable only via
+# tavily_queries: Citadel, Citadel Securities, Two Sigma, D.E. Shaw, Millennium,
+# Balyasny, Bridgewater, HRT, Susquehanna/SIG, XTX, Verition, Quantlab, PEAK6,
+# Walleye, Coatue, Arrowstreet, Numerai, Hamilton Lane, Geode, Bloomberg,
+# BlackRock, Goldman, JPM, Morgan Stanley, Jefferies, Evercore, Nasdaq, Cboe,
+# CME, S&P Global, MSCI, Moody's, FactSet, Morningstar.
+# NOTE: tavily hits carry no posted_at, so any run using --since-days skips
+# them entirely. Run the screen without a date window to reach these.
 
 companies:
   # --- Buy-side / prop / quant (primary) ---
@@ -141,6 +152,327 @@ companies:
     board: sardine
     archetype: ai-finance-startup
 
+  # ======================= expansion 2026-07-28 =======================
+  # Driven off the current resume, whose headline is "Agentic Systems,
+  # Evaluation & Enterprise Deployment" — finance is domain depth, not the
+  # job title. The blocks below follow the resume's actual load-bearing
+  # evidence rather than the industry it was earned in.
+
+  # --- Hedge funds / prop with public boards (the ones we were missing) ---
+  - name: Squarepoint Capital
+    ats: greenhouse
+    board: squarepointcapital
+    archetype: buy-side-ai
+  - name: Qube Research & Technologies
+    ats: greenhouse
+    board: quberesearchandtechnologies
+    archetype: buy-side-ai
+  - name: Voleon
+    ats: ashby
+    board: voleon
+    archetype: buy-side-ai
+  - name: Old Mission Capital
+    ats: greenhouse
+    board: oldmissioncapital
+    archetype: buy-side-ai
+  - name: Five Rings
+    ats: greenhouse
+    board: fiveringsllc
+    archetype: buy-side-ai
+  - name: Vatic Labs
+    ats: greenhouse
+    board: vaticlabs
+    archetype: buy-side-ai
+  - name: Graham Capital Management
+    ats: greenhouse
+    board: grahamcapitalmanagement
+    archetype: buy-side-ai
+  - name: Belvedere Trading
+    ats: lever
+    board: belvederetrading
+    archetype: buy-side-ai
+  - name: Acadian Asset Management
+    ats: greenhouse
+    board: acadianassetmanagementllc
+    archetype: buy-side-ai
+  - name: Bracebridge Capital
+    ats: greenhouse
+    board: bracebridgecapital
+    archetype: buy-side-ai
+
+  # --- Frontier labs & FDE shops (intent.md role shape #5, previously absent) ---
+  # Palantir is the forward-deployed archetype; the rest run FDE / applied-AI
+  # orgs that hire exactly the embed-scope-ship pattern the resume opens with.
+  - name: Anthropic
+    ats: greenhouse
+    board: anthropic
+    archetype: frontier-lab
+  - name: OpenAI
+    ats: ashby
+    board: openai
+    archetype: frontier-lab
+  - name: Palantir
+    ats: lever
+    board: palantir
+    archetype: frontier-lab
+  - name: Sierra
+    ats: ashby
+    board: sierra
+    archetype: frontier-lab
+  - name: Decagon
+    ats: ashby
+    board: decagon
+    archetype: frontier-lab
+  - name: Scale AI
+    ats: greenhouse
+    board: scaleai
+    archetype: frontier-lab
+  - name: Cohere
+    ats: ashby
+    board: cohere
+    archetype: frontier-lab
+  - name: Perplexity
+    ats: ashby
+    board: perplexity
+    archetype: frontier-lab
+  - name: Anysphere (Cursor)
+    ats: ashby
+    board: cursor
+    archetype: frontier-lab
+
+  # --- Agent / enterprise-knowledge platforms (the Hybrid Knowledge System story) ---
+  - name: Glean
+    ats: greenhouse
+    board: gleanwork
+    archetype: agent-platform
+  - name: Writer
+    ats: ashby
+    board: writer
+    archetype: agent-platform
+  - name: Dust
+    ats: ashby
+    board: dust
+    archetype: agent-platform
+  - name: Credal
+    ats: ashby
+    board: credal
+    archetype: agent-platform
+  - name: LangChain
+    ats: ashby
+    board: langchain
+    archetype: agent-platform
+  - name: Elicit
+    ats: ashby
+    board: elicit
+    archetype: agent-platform
+  - name: Databricks
+    ats: greenhouse
+    board: databricks
+    archetype: agent-platform
+  - name: Snowflake
+    ats: ashby
+    board: snowflake
+    archetype: agent-platform
+  - name: Together AI
+    ats: greenhouse
+    board: togetherai
+    archetype: agent-platform
+  - name: Notion
+    ats: ashby
+    board: notion
+    archetype: agent-platform
+
+  # --- Regtech / compliance AI ---
+  # Closest commercial match to the audit-trail + evidence-scoring + regulated-
+  # deployment work: at these firms that IS the product, not the guardrail.
+  - name: Norm Ai
+    ats: ashby
+    board: norm-ai
+    archetype: regtech-ai
+  - name: Alloy
+    ats: greenhouse
+    board: alloy
+    archetype: regtech-ai
+  - name: Middesk
+    ats: ashby
+    board: middesk
+    archetype: regtech-ai
+  - name: Hummingbird
+    ats: greenhouse
+    board: hummingbirdregtech
+    archetype: regtech-ai
+  - name: Numeric
+    ats: ashby
+    board: numeric
+    archetype: regtech-ai
+  - name: Basis
+    ats: lever
+    board: basis
+    archetype: regtech-ai
+  - name: Sixfold
+    ats: greenhouse
+    board: sixfold
+    archetype: regtech-ai
+  - name: Tennr
+    ats: ashby
+    board: tennr
+    archetype: regtech-ai
+  - name: Abridge
+    ats: ashby
+    board: abridge
+    archetype: regtech-ai
+
+  # --- Funds / banks reached via Workday + Eightfold (added 2026-07-28) ---
+  # These have no Greenhouse/Ashby/Lever board. Each careers page was sniffed
+  # for its real ATS, then the endpoint verified live. Workday boards are
+  # "tenant/server/site"; eightfold boards are "subdomain/domain".
+  # Workday's list view only gives a relative date ("Posted 4 Days Ago"), so the
+  # adapter pays for a detail request per posting to get startDate + description.
+  - name: Morgan Stanley
+    ats: workday
+    board: ms/wd5/External
+    archetype: bank-ai
+  - name: S&P Global
+    ats: workday
+    board: spgi/wd5/SPGI_Careers
+    archetype: bank-ai
+  - name: Nasdaq
+    ats: workday
+    board: nasdaq/wd1/Global_External_Site
+    archetype: bank-ai
+  - name: Ares Management
+    ats: workday
+    board: aresmgmt/wd1/External
+    archetype: vc-pe
+  - name: Wellington Management
+    ats: workday
+    board: wellington/wd5/External
+    archetype: buy-side-ai
+  # Eightfold list view returns an empty job_description and has no public
+  # detail endpoint, so these rows carry title/department/location only.
+  - name: Millennium
+    ats: eightfold
+    board: mlp/mlp.com
+    archetype: buy-side-ai
+
+  # --- Quant shops found on Greenhouse after sniffing their careers pages ---
+  - name: Hudson River Trading
+    ats: greenhouse
+    board: hrttalentcommunity
+    archetype: buy-side-ai
+  - name: XTX Markets
+    ats: greenhouse
+    board: xtxmarketstechnologies
+    archetype: buy-side-ai
+
+  # --- Fintech infrastructure (regulated + high-volume data platforms) ---
+  - name: Addepar
+    ats: greenhouse
+    board: addepar1
+    archetype: fintech-infra
+  - name: Robinhood
+    ats: greenhouse
+    board: robinhood
+    archetype: fintech-infra
+  - name: Plaid
+    ats: ashby
+    board: plaid
+    archetype: fintech-infra
+  - name: Stripe
+    ats: greenhouse
+    board: stripe
+    archetype: fintech-infra
+  - name: Affirm
+    ats: greenhouse
+    board: affirm
+    archetype: fintech-infra
+  - name: SoFi
+    ats: greenhouse
+    board: sofi
+    archetype: fintech-infra
+  - name: Marqeta
+    ats: greenhouse
+    board: marqeta
+    archetype: fintech-infra
+  - name: Chime
+    ats: greenhouse
+    board: chime
+    archetype: fintech-infra
+
+  # ======================= Hong Kong 2026-07-28 =======================
+  # Added when Hong Kong became a targeted market alongside the US. Most of the
+  # prop shops and funds above already surface their HK seats on the same global
+  # board (Jane Street, Qube, Millennium, Point72, Squarepoint, IMC, Flow
+  # Traders, Tower, Jump, Schonfeld, Man Group, Marshall Wace, Morgan Stanley),
+  # so this block is only the employers that Hong Kong adds and the US-shaped
+  # watchlist could not reach. Every slug below was probed live 2026-07-28 and
+  # kept only if it returned postings; the HK/APAC count at probe time is noted.
+  #
+  # Confirmed NOT reachable via any public ATS API (careers pages sniffed
+  # 2026-07-28 — bespoke portals or Avature): HSBC, Standard Chartered, HKEX,
+  # Manulife, Citadel HK, SIG HK, HashKey, OSL, Animoca, Futu, WeLab, Klook.
+  # These are reachable only through tavily_queries below.
+
+  # --- Asset managers / insurers with real HK engineering (Workday) ---
+  - name: AIA
+    ats: workday
+    board: aia/wd3/External          # 54 HK postings at probe time
+    archetype: bank-ai
+  - name: Fidelity International
+    ats: workday
+    board: fil/wd3/001               # 21 HK
+    archetype: buy-side-ai
+  - name: Invesco
+    ats: workday
+    board: invesco/wd1/IVZ           # 5 HK
+    archetype: buy-side-ai
+
+  # --- HK-headquartered prop / trading ---
+  - name: Eclipse Trading
+    ats: greenhouse
+    board: eclipsetrading            # HK-HQ prop shop; 15 of 18 postings APAC
+    archetype: buy-side-ai
+
+  # --- Digital-asset & fintech where HK is the HQ or the APAC hub ---
+  # Kept only where the engineering surface is plausibly agentic-AI / platform,
+  # not generic backend — the screen still has to earn each one.
+  - name: OKX
+    ats: greenhouse
+    board: okx                       # HK-HQ exchange; 234 APAC
+    archetype: fintech-infra
+  - name: Airwallex
+    ats: ashby
+    board: airwallex                 # HK-founded; 193 APAC
+    archetype: fintech-infra
+  - name: Amber Group
+    ats: lever
+    board: ambergroup
+    archetype: fintech-infra
+  - name: Bybit
+    ats: greenhouse
+    board: bybit
+    archetype: fintech-infra
+  - name: BitMEX
+    ats: greenhouse
+    board: bitmex
+    archetype: fintech-infra
+  - name: B2C2
+    ats: greenhouse
+    board: b2c2
+    archetype: fintech-infra
+  - name: Coinbase
+    ats: greenhouse
+    board: coinbase
+    archetype: fintech-infra
+  - name: Gemini
+    ats: greenhouse
+    board: gemini
+    archetype: fintech-infra
+  - name: Betterment
+    ats: greenhouse
+    board: betterment
+    archetype: fintech-infra
+
 tavily_queries:
   # Firms without public ATS boards (NYC / US)
   - 'Citadel OR "Citadel Securities" ("machine learning" OR "AI engineer" OR "research engineer") (NYC OR "New York") job 2026'
@@ -160,3 +492,21 @@ tavily_queries:
   - 'Blackstone OR KKR OR "Apollo Global" OR Carlyle OR "TPG" ("AI engineer" OR "machine learning" OR "data science" OR "generative AI") ("New York" OR NYC) careers 2026'
   - '"Insight Partners" OR "Thrive Capital" OR Coatue OR "Tiger Global" OR "Vista Equity" ("AI engineer" OR "machine learning" OR "applied AI" OR "platform engineer") ("New York" OR NYC) job'
   - '(venture capital OR "private equity" OR "growth equity") "AI engineer" OR "machine learning" OR "AI platform" (portfolio OR "in-house") ("New York" OR NYC) hiring 2026'
+  # --- added 2026-07-28: gaps the ATS blocks provably cannot reach ---
+  - 'Jefferies OR Evercore OR Lazard OR Moelis OR "Houlihan Lokey" OR "Perella Weinberg" ("AI engineer" OR "machine learning" OR "generative AI" OR agentic) ("New York" OR NYC) job 2026'
+  - 'MSCI OR "S&P Global" OR "Moody''s" OR FactSet OR Morningstar ("AI engineer" OR "knowledge graph" OR "LLM" OR agentic OR "GenAI") ("New York" OR remote US) hiring 2026'
+  - 'Nasdaq OR Cboe OR "CME Group" OR ICE ("machine learning engineer" OR "AI engineer" OR "applied AI") ("New York" OR Chicago) job 2026'
+  # Philadelphia-area buy-side — commutable without relocation
+  - 'Susquehanna OR "Hamilton Lane" OR "Glenmede" OR "Aberdeen" ("AI engineer" OR "machine learning" OR agentic OR "LLM") (Philadelphia OR "Bala Cynwyd" OR Conshohocken OR "West Conshohocken") job 2026'
+  # Forward-deployed / solutions-engineering shape (resume role shape #5)
+  - '"forward deployed engineer" OR "forward-deployed" OR "AI solutions engineer" OR "applied AI engineer" (enterprise OR regulated OR finance) ("New York" OR remote US) hiring 2026'
+  # --- Hong Kong (added 2026-07-28) — employers with no public ATS API ---
+  - 'HSBC OR "Standard Chartered" OR "Bank of China" OR UBS ("AI engineer" OR "machine learning engineer" OR "generative AI" OR agentic OR "GenAI") "Hong Kong" job 2026'
+  - 'HKEX OR "Hong Kong Exchanges" OR "Hong Kong Monetary Authority" OR "Securities and Futures Commission" ("AI engineer" OR "machine learning" OR "data science" OR "digital assets") "Hong Kong" careers 2026'
+  - 'Citadel OR "Citadel Securities" OR Susquehanna OR "Hudson River Trading" OR XTX OR "Jane Street" ("machine learning" OR "AI engineer" OR "software engineer") "Hong Kong" hiring 2026'
+  - 'Millennium OR "Point72" OR Balyasny OR "Two Sigma" OR "D. E. Shaw" OR Squarepoint ("AI engineer" OR "machine learning engineer" OR "quantitative developer") "Hong Kong" job 2026'
+  - 'HashKey OR OSL OR "Animoca Brands" OR Futu OR WeLab OR "ZA Bank" OR Klook ("AI engineer" OR "machine learning" OR "LLM" OR agentic) "Hong Kong" hiring 2026'
+  # Role-shaped HK long tail — the agentic / RAG / eval surface, not the industry
+  - '"agentic" OR "multi-agent" OR "LLM" OR RAG engineer (finance OR fintech OR "asset management" OR trading) "Hong Kong" job 2026'
+  - '"AI platform" OR "applied AI" OR "forward deployed" OR "AI enablement" engineer "Hong Kong" (visa OR sponsorship OR relocation) hiring 2026'
+  - '"machine learning engineer" OR "AI engineer" "Hong Kong" ("employment visa" OR GEP OR "visa sponsorship" OR "relocation package") 2026'

@@ -1,0 +1,12 @@
+{
+  "count": 2,
+  "positions": [
+    {"id": 755957773457, "name": "Senior Quantitative Developer",
+     "location": "New York, New York, United States of America",
+     "department": "Information Technology", "business_unit": "Technology",
+     "t_create": 1785110400, "job_description": "",
+     "canonicalPositionUrl": "https://mlp.eightfold.ai/careers/job/755957773457"},
+    {"id": 999, "name": "No URL Role", "location": "London",
+     "t_create": null, "job_description": ""}
+  ]
+}

@@ -1,11 +1,33 @@
 # sources.py
 from __future__ import annotations
 
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from db import Job
+
+# Workday and Eightfold sit behind bot management and reject the default httpx
+# user-agent; the three JSON boards do not care.
+_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+_HEADERS = {"User-Agent": _UA, "Accept": "application/json"}
+
+_TAG = re.compile(r"<[^>]+>")
+_WS = re.compile(r"\n{3,}")
+
+
+def _detag(html: str) -> str:
+    """Workday returns jobDescription as an HTML fragment. No parser dependency
+    is installed, and the screen only needs prose, so strip tags crudely."""
+    text = _TAG.sub("\n", html or "")
+    text = (text.replace("&nbsp;", " ").replace("&amp;", "&")
+                .replace("&lt;", "<").replace("&gt;", ">").replace("&#39;", "'")
+                .replace("&quot;", '"'))
+    return _WS.sub("\n\n", text).strip()
 
 
 def parse_greenhouse(payload: dict[str, Any], *, company: str) -> list[Job]:
@@ -48,6 +70,52 @@ def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[Job]:
     return out
 
 
+def parse_workday_detail(payload: dict[str, Any], *, company: str,
+                         url: str) -> Job | None:
+    """One job from Workday's CxS detail endpoint.
+
+    The list endpoint only carries a title, a location string and a *relative*
+    date ("Posted 4 Days Ago"). The detail endpoint carries the description and
+    `startDate` as a real ISO day, which is the only reason we pay for a second
+    request per job — a relative date cannot drive --since-days."""
+    info = payload.get("jobPostingInfo") or {}
+    title = info.get("title")
+    if not title:
+        return None
+    start = info.get("startDate") or ""
+    posted = f"{start}T00:00:00+00:00" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) else None
+    return Job(
+        url=url, company=company, title=title,
+        location=info.get("location", "") or "", source="ats:workday",
+        ats="workday", posted_at=posted,
+        raw_text=_detag(info.get("jobDescription", "")),
+    )
+
+
+def parse_eightfold(payload: dict[str, Any], *, company: str) -> list[Job]:
+    """Eightfold's list endpoint. `job_description` comes back empty here and
+    there is no public detail endpoint, so these rows carry title, location and
+    department only — enough to screen and click through, not to grade deeply."""
+    out: list[Job] = []
+    for p in payload.get("positions", []):
+        pid = p.get("id")
+        url = p.get("canonicalPositionUrl") or (pid and f"eightfold:{pid}")
+        if not url:
+            continue
+        created = p.get("t_create")
+        posted = (datetime.fromtimestamp(int(created), timezone.utc).isoformat()
+                  if created else None)
+        bits = [p.get("name", ""), p.get("department", ""),
+                p.get("business_unit", ""), p.get("job_description", "")]
+        out.append(Job(
+            url=url, company=company, title=p.get("name", ""),
+            location=p.get("location", "") or "", source="ats:eightfold",
+            ats="eightfold", posted_at=posted,
+            raw_text="\n".join(b for b in bits if b),
+        ))
+    return out
+
+
 _ATS_URL = {
     "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{board}/jobs?content=true",
     "ashby": "https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true",
@@ -60,10 +128,83 @@ _PARSERS = {
     "lever": parse_lever,
 }
 
+# Newest-first, so a cap drops the stale tail rather than this week's postings.
+WORKDAY_MAX_JOBS = 300
+_WD_PAGE = 20
+_EF_PAGE = 10
+
+
+def fetch_workday(*, board: str, company: str, timeout: float = 20.0,
+                  max_jobs: int = WORKDAY_MAX_JOBS) -> list[Job]:
+    """`board` is "tenant/server/site", e.g. "ms/wd5/External"."""
+    try:
+        tenant, server, site = board.split("/")
+    except ValueError:
+        raise ValueError(f"workday board must be tenant/server/site, got {board!r}")
+    base = f"https://{tenant}.{server}.myworkdayjobs.com/wday/cxs/{tenant}/{site}"
+    ui = f"https://{tenant}.{server}.myworkdayjobs.com/{site}"
+
+    paths: list[str] = []
+    with httpx.Client(timeout=timeout, headers=_HEADERS) as client:
+        offset = 0
+        while len(paths) < max_jobs:
+            resp = client.post(f"{base}/jobs", json={
+                "appliedFacets": {}, "limit": _WD_PAGE, "offset": offset,
+                "searchText": ""})
+            resp.raise_for_status()
+            page = resp.json().get("jobPostings") or []
+            if not page:
+                break
+            paths.extend(p["externalPath"] for p in page if p.get("externalPath"))
+            offset += _WD_PAGE
+        paths = paths[:max_jobs]
+
+        def one(path: str) -> Job | None:
+            try:
+                r = client.get(f"{base}{path}")
+                r.raise_for_status()
+                return parse_workday_detail(r.json(), company=company,
+                                            url=f"{ui}{path}")
+            except Exception:  # noqa: BLE001 — one bad posting must not kill the board
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            return [j for j in pool.map(one, paths) if j is not None]
+
+
+def fetch_eightfold(*, board: str, company: str, timeout: float = 20.0,
+                    max_jobs: int = 500) -> list[Job]:
+    """`board` is "subdomain/domain", e.g. "mlp/mlp.com"."""
+    try:
+        sub, domain = board.split("/")
+    except ValueError:
+        raise ValueError(f"eightfold board must be sub/domain, got {board!r}")
+    url = f"https://{sub}.eightfold.ai/api/apply/v2/jobs"
+    out: list[Job] = []
+    with httpx.Client(timeout=timeout, headers=_HEADERS) as client:
+        start = 0
+        while len(out) < max_jobs:
+            r = client.get(url, params={"domain": domain, "start": start,
+                                        "num": _EF_PAGE, "sort_by": "timestamp"})
+            r.raise_for_status()
+            batch = parse_eightfold(r.json(), company=company)
+            if not batch:
+                break
+            out.extend(batch)
+            # Eightfold silently caps the page size below whatever `num` asks
+            # for, so advance by what actually came back — stepping by the
+            # requested size skips every job in the gap.
+            start += len(batch)
+    return out[:max_jobs]
+
 
 def fetch_ats(ats: str, *, board: str, company: str, timeout: float = 20.0) -> list[Job]:
     """Fetch + parse one company's board. Raises ValueError for unknown ATS;
     lets httpx errors propagate to the caller (discover.py handles per-company)."""
+    if ats == "workday":
+        return fetch_workday(board=board, company=company, timeout=timeout)
+    if ats == "eightfold":
+        return fetch_eightfold(board=board, company=company, timeout=timeout)
     if ats not in _ATS_URL:
         raise ValueError(f"unsupported ATS: {ats}")
     url = _ATS_URL[ats].format(board=board)
