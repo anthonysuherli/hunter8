@@ -9,8 +9,10 @@ dist/
 hunter8.db
 intent.md
 ML-AI-Roles-Tracker.xlsx
+ML-AI-Roles-Tracker.xlsx.bak-*
 resumes/
 rubric.md
+brief.md
 calibration-report.md
 apply-run-*.log
 hunter8.db.bak-*

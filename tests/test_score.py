@@ -11,8 +11,11 @@ import db as dbmod
 
 
 class _FakeAgent:
-    def __init__(self, verdict=None, exc=None):
+    def __init__(self, verdict=None, exc=None, cost=None):
         self._verdict, self._exc = verdict, exc
+        self.last_cost_usd = cost
+        self.total_cost_usd = 0.0
+        self.calls = 0
 
     def chat_json(self, system, user):
         if self._exc:
@@ -105,3 +108,26 @@ def test_run_scoring_limit_takes_highest_fit_scores_first(tmp_path):
 
     scored = dbmod.jobs_by_status(conn, "scored")
     assert len(scored) == 1 and scored[0].url == "https://x/high"
+
+
+def test_run_scoring_persists_the_cost_of_each_call(tmp_path):
+    """Cost has to land on the row, not just in the agent, or the question
+    "what did that report cost?" stays unanswerable after the process exits."""
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "AI Engineer", 80)
+    agent = _FakeAgent(verdict={
+        "grade": "A", "reasoning": "ok", "archetype": "lab",
+        "comp_signal": "", "red_flags": []}, cost=0.0084)
+    score.run_scoring(conn, intent_md="intent", agent=agent)
+    assert dbmod.jobs_by_status(conn, "scored")[0].cost_usd == 0.0084
+    assert dbmod.total_cost(conn) == (0.0084, 1)
+
+
+def test_run_scoring_prices_a_failed_grade(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "AI Engineer", 70)
+    agent = _FakeAgent(exc=RuntimeError("bad json"), cost=0.005)
+    score.run_scoring(conn, intent_md="intent", agent=agent)
+    assert dbmod.jobs_by_status(conn, "score_error")[0].cost_usd == 0.005

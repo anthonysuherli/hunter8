@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   triaged_at    TEXT,
   fit_score     INTEGER,
   screen_reason TEXT,
-  screened_at   TEXT
+  screened_at   TEXT,
+  cost_usd      REAL
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 """
@@ -59,6 +60,7 @@ class Job:
     fit_score: int | None = None
     screen_reason: str | None = None
     screened_at: str | None = None
+    cost_usd: float | None = None
 
 
 def _now() -> str:
@@ -75,6 +77,7 @@ _MIGRATIONS = {
     "fit_score": "INTEGER",
     "screen_reason": "TEXT",
     "screened_at": "TEXT",
+    "cost_usd": "REAL",
 }
 
 
@@ -122,15 +125,22 @@ def jobs_by_status(conn: sqlite3.Connection, status: str, *,
                    posted_since: str | None = None) -> list[Job]:
     """Jobs in one status.
 
-    `posted_since` is an ISO timestamp and filters on the board's own posting
-    date. Jobs with no posted_at — web-search hits, which carry none — are
-    excluded by it, because "posted since X" cannot be true of an unknown date."""
+    `posted_since` is an ISO timestamp filtering on the board's posting date,
+    falling back to discovered_at when the source supplies none.
+
+    That fallback is not cosmetic. Excluding undated rows outright hid every
+    web-search hit from every dated run — and since the firms with no public ATS
+    (Citadel, Two Sigma, D. E. Shaw, Point72, Goldman) are reachable *only* by
+    web search, it hid that entire tier. Measured 2026-07-28: an undated run
+    surfaced three A-grades the dated runs never saw, including a $300-400K
+    Point72 seat. When we found a posting is a worse recency signal than when it
+    was published, but it beats dropping the row."""
     if order_by is not None and order_by not in _ORDER_BY:
         raise ValueError(f"order_by must be one of {sorted(_ORDER_BY)}, got {order_by!r}")
     sql = "SELECT * FROM jobs WHERE status=?"
     params: list = [status]
     if posted_since is not None:
-        sql += " AND posted_at IS NOT NULL AND posted_at != '' AND posted_at >= ?"
+        sql += " AND COALESCE(NULLIF(posted_at, ''), discovered_at) >= ?"
         params.append(posted_since)
     sql += f" ORDER BY {order_by or 'id'}"
     if limit is not None:
@@ -152,14 +162,26 @@ def set_screen(conn: sqlite3.Connection, job_id: int, *, status: str,
 def set_score(
     conn: sqlite3.Connection, job_id: int, *, status: str, grade: str | None,
     reasoning: str | None, archetype: str | None, comp_signal: str | None,
-    red_flags: str | None,
+    red_flags: str | None, cost_usd: float | None = None,
 ) -> None:
     conn.execute(
         """UPDATE jobs SET status=?, grade=?, reasoning=?, archetype=?,
-           comp_signal=?, red_flags=?, scored_at=? WHERE id=?""",
-        (status, grade, reasoning, archetype, comp_signal, red_flags, _now(), job_id),
+           comp_signal=?, red_flags=?, cost_usd=?, scored_at=? WHERE id=?""",
+        (status, grade, reasoning, archetype, comp_signal, red_flags, cost_usd,
+         _now(), job_id),
     )
     conn.commit()
+
+
+def total_cost(conn: sqlite3.Connection, *, since: str | None = None) -> tuple[float, int]:
+    """(sum of cost_usd, number of priced rows). `since` filters on scored_at."""
+    sql = "SELECT COALESCE(SUM(cost_usd), 0), COUNT(cost_usd) FROM jobs WHERE cost_usd IS NOT NULL"
+    params: list = []
+    if since is not None:
+        sql += " AND scored_at >= ?"
+        params.append(since)
+    total, n = conn.execute(sql, params).fetchone()
+    return float(total), int(n)
 
 
 def set_triage(conn: sqlite3.Connection, job_id: int, *, status: str) -> None:

@@ -100,9 +100,10 @@ def test_since_days_keeps_only_recently_posted(tmp_path):
     assert [j.url for j in dbmod.jobs_by_status(conn, "discovered")] == ["https://x/old"]
 
 
-def test_since_days_skips_jobs_with_no_posting_date(tmp_path):
-    """Web-search hits carry no posted_at — 'posted since X' can't be true of
-    an unknown date, so they are left queued rather than silently promoted."""
+def test_since_days_falls_back_to_discovered_at_for_undated_jobs(tmp_path):
+    """Web-search hits carry no posted_at. Excluding them outright hid every
+    firm with no public ATS — Citadel, Two Sigma, D. E. Shaw, Point72 — from
+    every dated run. Fall back to when we found the posting instead."""
     conn = _conn(tmp_path, n=0)
     _posted(conn, "https://x/dated", "2026-07-27T00:00:00+00:00")
     _posted(conn, "https://x/undated", "")
@@ -110,7 +111,24 @@ def test_since_days_skips_jobs_with_no_posting_date(tmp_path):
     screen.run_screening(conn, rubric_text="r", agent=_FakeAgent(score=80),
                          threshold=25, posted_since="2026-07-21T00:00:00+00:00")
 
-    assert [j.url for j in dbmod.jobs_by_status(conn, "discovered")] == ["https://x/undated"]
+    assert sorted(j.url for j in dbmod.jobs_by_status(conn, "screened_in")) == [
+        "https://x/dated", "https://x/undated"]
+    assert dbmod.jobs_by_status(conn, "discovered") == []
+
+
+def test_since_days_still_excludes_an_undated_job_found_long_ago(tmp_path):
+    """The fallback must not become 'undated always passes' — a stale row we
+    found months back is not a recent posting."""
+    conn = _conn(tmp_path, n=0)
+    _posted(conn, "https://x/stale", "")
+    conn.execute("UPDATE jobs SET discovered_at='2026-01-05T00:00:00+00:00' "
+                 "WHERE url='https://x/stale'")
+    conn.commit()
+
+    screen.run_screening(conn, rubric_text="r", agent=_FakeAgent(score=80),
+                         threshold=25, posted_since="2026-07-21T00:00:00+00:00")
+
+    assert [j.url for j in dbmod.jobs_by_status(conn, "discovered")] == ["https://x/stale"]
 
 
 def test_cutoff_none_means_no_date_filter():

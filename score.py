@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 import claude_agent
 import db as dbmod
+import rubric
 from claude_agent import ClaudeAgent, ClaudeUnavailable
 from db import Job
 
@@ -58,9 +59,9 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
                 limit: int | None = None, posted_since: str | None = None) -> None:
     """Grade screened_in jobs with Claude, best fit first.
 
-    Ordering and `limit` matter: each Claude call carries ~43k tokens of harness
-    overhead, so a capped run must spend the quota on the most promising jobs
-    rather than on whatever id happens to be lowest."""
+    Ordering and `limit` matter: every call re-sends `intent_md`, so a capped run
+    must spend the budget on the most promising jobs rather than on whatever id
+    happens to be lowest."""
     jobs = dbmod.jobs_by_status(conn, "screened_in", order_by="fit_score DESC",
                                 limit=limit, posted_since=posted_since)
     for job in jobs:
@@ -70,14 +71,18 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
             raise  # fail-fast: not logged in or out of quota — every job would fail
         except Exception as exc:  # noqa: BLE001 — visible, never a silent default
             log.warning("scoring failed for %s: %s", job.title, exc)
+            # A call that failed to parse still spent tokens — price it anyway,
+            # or the run total silently understates what the run cost.
             dbmod.set_score(conn, job.id, status="score_error", grade=None,
                             reasoning=str(exc)[:200], archetype=None,
-                            comp_signal=None, red_flags=None)
+                            comp_signal=None, red_flags=None,
+                            cost_usd=agent.last_cost_usd)
             continue
         dbmod.set_score(conn, job.id, status="scored", grade=v.grade,
                         reasoning=v.reasoning, archetype=v.archetype,
                         comp_signal=v.comp_signal,
-                        red_flags=json.dumps(v.red_flags))
+                        red_flags=json.dumps(v.red_flags),
+                        cost_usd=agent.last_cost_usd)
 
 
 @click.command()
@@ -88,8 +93,13 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
               help="Only jobs the board posted within the last N days.")
 @click.option("--intent", "intent_path", default="intent.md",
               type=click.Path(exists=True, path_type=Path))
+@click.option("--brief", "brief_path", default="brief.md", type=Path,
+              help="Cached grading brief distilled from intent.md.")
+@click.option("--full-intent", is_flag=True,
+              help="Send the whole of intent.md per job. ~7x the cost; use only "
+                   "to compare grades against the brief.")
 def main(db_path: Path | None, limit: int | None, since_days: int | None,
-         intent_path: Path) -> None:
+         intent_path: Path, brief_path: Path, full_intent: bool) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     agent = ClaudeAgent(
         model=os.getenv("HUNTER8_SCORER_MODEL", claude_agent.DEFAULT_MODEL))
@@ -97,12 +107,23 @@ def main(db_path: Path | None, limit: int | None, since_days: int | None,
     dbmod.init_db(conn)
     since = (None if since_days is None else
              (datetime.now(timezone.utc) - timedelta(days=since_days)).isoformat())
-    run_scoring(conn, intent_md=intent_path.read_text(), agent=agent, limit=limit,
+    # The brief is one distillation call, cached on intent.md's hash, instead of
+    # ~36.5k tokens re-sent on every job.
+    intent_md = (intent_path.read_text() if full_intent else
+                 rubric.load_or_build(intent_path, brief_path, agent,
+                                      profile=rubric.GRADE))
+    run_scoring(conn, intent_md=intent_md, agent=agent, limit=limit,
                 posted_since=since)
     # screened_in is the remaining queue — the number a capped run left behind.
     counts = {s: len(dbmod.jobs_by_status(conn, s))
               for s in ("scored", "screened_in", "score_error")}
     click.echo(f"Scoring complete: {counts}")
+    lifetime, priced = dbmod.total_cost(conn)
+    per_call = agent.total_cost_usd / agent.calls if agent.calls else 0.0
+    click.echo(
+        f"Cost: this run ${agent.total_cost_usd:.4f} over {agent.calls} call(s) "
+        f"(${per_call:.4f}/call); ${lifetime:.4f} across {priced} priced row(s). "
+        f"Billed $0 — subscription auth.")
 
 
 if __name__ == "__main__":

@@ -113,3 +113,58 @@ def test_jobs_by_status_rejects_unknown_order_by(tmp_path):
     dbmod.init_db(conn)
     with pytest.raises(ValueError):
         dbmod.jobs_by_status(conn, "screened_in", order_by="1; DROP TABLE jobs")
+
+
+def test_set_score_persists_cost_and_total_cost_sums_it(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    for i, cost in enumerate([0.01, 0.02, None]):
+        dbmod.insert_job(conn, dbmod.Job(url=f"https://x/{i}", company="Acme",
+                                        title="T", location="NYC",
+                                        source="ats:greenhouse", ats="greenhouse"))
+        jid = [j for j in dbmod.jobs_by_status(conn, "discovered")
+               if j.url == f"https://x/{i}"][0].id
+        dbmod.set_score(conn, jid, status="scored", grade="A", reasoning="r",
+                        archetype="a", comp_signal="", red_flags="[]", cost_usd=cost)
+    total, priced = dbmod.total_cost(conn)
+    assert round(total, 4) == 0.03 and priced == 2
+    assert dbmod.jobs_by_status(conn, "scored")[0].cost_usd == 0.01
+
+
+def _job_row(url, posted_at, discovered_at=None):
+    return url, posted_at, discovered_at
+
+
+def test_posted_since_falls_back_to_discovered_at(tmp_path):
+    """The clause that required a non-empty posted_at hid all 261 web-search
+    rows — the only route to firms with no public ATS — from every dated run."""
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    for url, posted in [("https://x/dated", "2026-07-27T00:00:00+00:00"),
+                        ("https://x/null", None),
+                        ("https://x/empty", "")]:
+        dbmod.insert_job(conn, dbmod.Job(url=url, company="Acme", title="T",
+                                         location="NYC", source="tavily", ats=None))
+        conn.execute("UPDATE jobs SET posted_at=? WHERE url=?", (posted, url))
+    conn.execute("UPDATE jobs SET discovered_at='2026-07-26T00:00:00+00:00'")
+    conn.commit()
+
+    got = dbmod.jobs_by_status(conn, "discovered",
+                               posted_since="2026-07-21T00:00:00+00:00")
+    assert sorted(j.url for j in got) == [
+        "https://x/dated", "https://x/empty", "https://x/null"]
+
+
+def test_posted_since_uses_posted_at_when_present_even_if_recently_discovered(tmp_path):
+    """A job published in January but scraped today is still a January posting."""
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, dbmod.Job(url="https://x/old", company="Acme", title="T",
+                                     location="NYC", source="ats:greenhouse",
+                                     ats="greenhouse"))
+    conn.execute("UPDATE jobs SET posted_at='2026-01-02T00:00:00+00:00', "
+                 "discovered_at='2026-07-28T00:00:00+00:00'")
+    conn.commit()
+
+    assert dbmod.jobs_by_status(conn, "discovered",
+                                posted_since="2026-07-21T00:00:00+00:00") == []

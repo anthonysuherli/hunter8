@@ -40,12 +40,37 @@ def _classify(text: str, returncode: int) -> ClaudeError:
     return ClaudeError(f"claude failed (exit {returncode}): {(text or '').strip()[:200]}")
 
 
+def _cost(envelope: dict) -> float | None:
+    """`total_cost_usd` from the CLI envelope, or None if absent/unparseable.
+
+    Subscription runs are not billed per call, so this is what the same work
+    would have cost at API rates — the only figure that makes "does screening
+    stay free?" checkable after the fact rather than by re-measuring."""
+    raw = envelope.get("total_cost_usd")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 class ClaudeAgent:
     def __init__(self, *, model: str = DEFAULT_MODEL, effort: str = DEFAULT_EFFORT,
                  timeout: float = 300.0) -> None:
         self.model = model
         self.effort = effort
         self.timeout = timeout
+        # Cost of the most recent call, and the running total for this process.
+        # A failed call still burns tokens, so both are updated before raising.
+        self.last_cost_usd: float | None = None
+        self.total_cost_usd: float = 0.0
+        self.calls: int = 0
+
+    def _record(self, envelope: dict) -> None:
+        self.last_cost_usd = _cost(envelope)
+        self.total_cost_usd += self.last_cost_usd or 0.0
+        self.calls += 1
 
     def chat_json(self, system: str, user: str) -> dict:
         """One headless turn expected to return a JSON object. Raises ClaudeError
@@ -85,6 +110,8 @@ class ClaudeAgent:
         except json.JSONDecodeError as exc:
             raise ClaudeError(
                 f"claude returned non-JSON envelope: {proc.stdout[:200]!r}") from exc
+
+        self._record(envelope)
 
         if envelope.get("is_error") or envelope.get("subtype") != "success":
             usage = envelope.get("usage") or {}

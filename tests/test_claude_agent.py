@@ -128,3 +128,64 @@ def test_unparseable_result_raises(monkeypatch):
     with pytest.raises(claude_agent.ClaudeError) as ei:
         _run(monkeypatch, _Proc(stdout=_envelope("not json at all")))
     assert "no json object" in str(ei.value).lower()
+
+
+def _cost_envelope(**over):
+    env = {"subtype": "success", "result": '{"grade": "A"}',
+           "total_cost_usd": 0.0084}
+    env.update(over)
+    return env
+
+
+def test_agent_records_cost_per_call_and_running_total(monkeypatch):
+    import json as _json
+    import claude_agent as ca
+
+    class _Proc:
+        returncode = 0
+        stderr = ""
+        def __init__(self, out): self.stdout = out
+
+    outs = iter([_json.dumps(_cost_envelope()), _json.dumps(_cost_envelope(total_cost_usd=0.02))])
+    monkeypatch.setattr(ca.subprocess, "run",
+                        lambda *a, **k: _Proc(next(outs)))
+    agent = ca.ClaudeAgent()
+    agent.chat_json("s", "u")
+    assert agent.last_cost_usd == 0.0084
+    agent.chat_json("s", "u")
+    assert agent.last_cost_usd == 0.02
+    assert round(agent.total_cost_usd, 4) == 0.0284 and agent.calls == 2
+
+
+def test_agent_cost_is_none_when_envelope_omits_it(monkeypatch):
+    import json as _json
+    import claude_agent as ca
+
+    class _Proc:
+        returncode = 0
+        stderr = ""
+        stdout = _json.dumps({"subtype": "success", "result": '{"grade": "A"}'})
+
+    monkeypatch.setattr(ca.subprocess, "run", lambda *a, **k: _Proc())
+    agent = ca.ClaudeAgent()
+    agent.chat_json("s", "u")
+    assert agent.last_cost_usd is None
+    assert agent.total_cost_usd == 0.0 and agent.calls == 1
+
+
+def test_agent_prices_a_failed_call(monkeypatch):
+    """A malformed reply still burned tokens; the total must include it."""
+    import json as _json
+    import pytest
+    import claude_agent as ca
+
+    class _Proc:
+        returncode = 0
+        stderr = ""
+        stdout = _json.dumps(_cost_envelope(result="not json at all"))
+
+    monkeypatch.setattr(ca.subprocess, "run", lambda *a, **k: _Proc())
+    agent = ca.ClaudeAgent()
+    with pytest.raises(ca.ClaudeError):
+        agent.chat_json("s", "u")
+    assert agent.last_cost_usd == 0.0084 and agent.calls == 1

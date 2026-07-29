@@ -63,3 +63,65 @@ def test_human_block_survives_regeneration(tmp_path):
     body = rubric.load_or_build(intent, rub, agent)
     assert "Never surface contract roles." in body
     assert "Never surface contract roles." in rub.read_text(encoding="utf-8")
+
+
+def _agent(payload):
+    class _A:
+        def __init__(self): self.systems = []
+        def chat_json(self, system, user):
+            self.systems.append(system)
+            return payload
+    return _A()
+
+
+def test_grade_profile_writes_brief_with_its_own_title(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("full profile; work authorization details here")
+    out = tmp_path / "brief.md"
+    body = "## Hard constraints\nWork authorization rules preserved.\n## Evidence\nRAGAS harness."
+    text = rubric.load_or_build(intent, out, _agent({"brief": body}),
+                                profile=rubric.GRADE)
+    assert text.startswith("# Grading Brief")
+    assert "RAGAS harness" in text and out.exists()
+
+
+def test_grade_profile_refuses_a_brief_that_lost_the_sponsorship_rule(tmp_path):
+    """Losing this once invalidated every grade in the corpus. Fail, don't write."""
+    import pytest
+    intent = tmp_path / "intent.md"
+    intent.write_text("full profile")
+    out = tmp_path / "brief.md"
+    body = "## Hard constraints\nWants NYC. Comp floor $200k.\n## Evidence\nAgents."
+    with pytest.raises(SystemExit, match="dropped required term"):
+        rubric.load_or_build(intent, out, _agent({"brief": body}),
+                             profile=rubric.GRADE)
+    assert not out.exists()   # nothing half-written to be silently reused
+
+
+def test_grade_profile_uses_the_grading_system_prompt(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile")
+    agent = _agent({"brief": "Work authorization rules kept. Evidence: agents."})
+    rubric.load_or_build(intent, tmp_path / "brief.md", agent,
+                         profile=rubric.GRADE)
+    assert "grading brief" in agent.systems[0]
+    assert "VERBATIM" in agent.systems[0]
+
+
+def test_screen_profile_is_still_the_default(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile")
+    agent = _agent({"rubric": "disqualifiers"})
+    text = rubric.load_or_build(intent, tmp_path / "rubric.md", agent)
+    assert text.startswith("# Screening Rubric")
+    assert "screening rubric" in agent.systems[0]
+
+
+def test_brief_is_cached_on_the_intent_hash(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile")
+    out = tmp_path / "brief.md"
+    agent = _agent({"brief": "Work authorization preserved. Evidence."})
+    rubric.load_or_build(intent, out, agent, profile=rubric.GRADE)
+    rubric.load_or_build(intent, out, agent, profile=rubric.GRADE)
+    assert len(agent.systems) == 1   # second call served from cache
