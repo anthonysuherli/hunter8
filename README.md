@@ -44,6 +44,32 @@ python apply.py           # 6. (existing) submit the approved rows
 - Requires `TAVILY_API_KEY` (web discovery); `sync_intent.py` needs `SUPABASE_URL` +
   `SUPABASE_SERVICE_ROLE_KEY` for the delapan KB.
 
+## Claude Code plugin
+
+`plugin/` is a local Claude Code plugin wrapping the loop. Install it from this
+repo, then run from the repo root:
+
+| Command | Does |
+|---|---|
+| `/hunter8:morning [days]` | Preflight, run the pipeline, write `reports/YYYY-MM-DD.md`, offer triage |
+| `/hunter8:triage [grade]` | Present graded jobs with reasoning, write approvals to the tracker |
+| `/hunter8:health` | Queue counts, threshold drift, screen-vs-Claude agreement, cost |
+| `/hunter8:coverage [days]` | Silent and stale watchlist boards, proposed additions |
+
+The commands shell out to `analyze.py`, which is read-only and has `--json` on
+every subcommand — so the same reports work from a plain terminal with no Claude
+session:
+
+```bash
+python analyze.py health
+python analyze.py shortlist --grade A --since-days 7
+python analyze.py patterns --by archetype
+python analyze.py coverage
+```
+
+Approval is always a human decision made in chat. `apply.py` is still run by
+hand; agent-driven submission is a separate spec.
+
 ## Usage
 
 ```bash

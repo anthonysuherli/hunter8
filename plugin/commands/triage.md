@@ -18,11 +18,16 @@ Grade to review: $1 (default `A`).
    location, grade, `fit_score`, `comp_signal`, the URL, and the full
    `reasoning`. Then add one line of your own read — whether the reasoning
    actually holds up against the posting, and any `red_flags` worth weighing.
-   Do not rank or re-score; the grade is not yours to revise.
+   Do not rank or re-score; the grade is not yours to revise. `fit_score` is
+   `null` for 85 rows scored before the local screening tier existed — render
+   it as `—`; that is expected, not a data anomaly worth flagging.
 5. Ask which to approve. **Wait for an answer.** If the reply is ambiguous
-   ("the good ones", "most of them"), ask again with a concrete list — never
-   interpret. Approval is the gate; a guessed approval cannot be undone once
-   apply runs.
+   ("the good ones", "most of them", "the top three"), ask again with a
+   concrete list — never interpret. A count or superlative is still
+   ambiguous even without hedge words: the listing order reflects this
+   command's own priority, not a ranking the user asked for, so "the top
+   three" without explicit ids needs a follow-up question too. Approval is
+   the gate; a guessed approval cannot be undone once apply runs.
 6. Run `.venv/bin/python triage.py --approve <ids> --tracker "$TRACKER_PATH"`
    with only the ids the user named.
 7. Report each line the command printed. If any id failed — a locked workbook,
