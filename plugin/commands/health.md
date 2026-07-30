@@ -11,8 +11,10 @@ Run `.venv/bin/python analyze.py health --json` and
 2. **Misconfiguration** — every true flag under `threshold`, with the fix.
    `disagrees` means runs are screening at a value nobody chose.
 3. **Agreement** — A-recall at the current threshold over the graded sample, and
-   the highest threshold still holding 100%. If A-recall is below 1.0, say
-   plainly that the screen is currently discarding jobs Claude would have called
+   the highest threshold still holding 100%. If `threshold_was_sampled` is false,
+   say the threshold was never evaluated (calibration samples every 5) and report
+   `highest_threshold_with_full_a_recall` instead. Otherwise, if A-recall is below 1.0,
+   say plainly that the screen is currently discarding jobs Claude would have called
    A.
 4. **Errors** — every `screen_error` / `score_error` row with its reason,
    grouped if they share a cause.
