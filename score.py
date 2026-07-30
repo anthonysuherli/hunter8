@@ -56,7 +56,8 @@ def grade_job(job: Job, *, intent_md: str, agent: ClaudeAgent) -> Verdict:
 
 
 def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
-                limit: int | None = None, posted_since: str | None = None) -> None:
+                limit: int | None = None, posted_since: str | None = None,
+                brief_sha: str) -> None:
     """Grade screened_in jobs with Claude, best fit first.
 
     Ordering and `limit` matter: every call re-sends `intent_md`, so a capped run
@@ -76,13 +77,13 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
             dbmod.set_score(conn, job.id, status="score_error", grade=None,
                             reasoning=str(exc)[:200], archetype=None,
                             comp_signal=None, red_flags=None,
-                            cost_usd=agent.last_cost_usd)
+                            cost_usd=agent.last_cost_usd, brief_sha=brief_sha)
             continue
         dbmod.set_score(conn, job.id, status="scored", grade=v.grade,
                         reasoning=v.reasoning, archetype=v.archetype,
                         comp_signal=v.comp_signal,
                         red_flags=json.dumps(v.red_flags),
-                        cost_usd=agent.last_cost_usd)
+                        cost_usd=agent.last_cost_usd, brief_sha=brief_sha)
 
 
 @click.command()
@@ -112,8 +113,10 @@ def main(db_path: Path | None, limit: int | None, since_days: int | None,
     intent_md = (intent_path.read_text() if full_intent else
                  rubric.load_or_build(intent_path, brief_path, agent,
                                       profile=rubric.GRADE))
+    brief_sha = rubric.provenance_sha(intent_path, brief_path,
+                                      full_intent=full_intent)
     run_scoring(conn, intent_md=intent_md, agent=agent, limit=limit,
-                posted_since=since)
+                posted_since=since, brief_sha=brief_sha)
     # screened_in is the remaining queue — the number a capped run left behind.
     counts = {s: len(dbmod.jobs_by_status(conn, s))
               for s in ("scored", "screened_in", "score_error")}

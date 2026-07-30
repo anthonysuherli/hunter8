@@ -49,7 +49,7 @@ def test_run_scoring_grades_screened_in_jobs(tmp_path):
     agent = _FakeAgent(verdict={
         "grade": "B", "reasoning": "ok", "archetype": "lab",
         "comp_signal": "", "red_flags": []})
-    score.run_scoring(conn, intent_md="intent", agent=agent)
+    score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test")
     assert len(dbmod.jobs_by_status(conn, "scored")) == 2
 
 
@@ -58,7 +58,7 @@ def test_run_scoring_marks_score_error(tmp_path):
     dbmod.init_db(conn)
     _screened(conn, "AI Engineer", 70)
     agent = _FakeAgent(exc=RuntimeError("agent down"))
-    score.run_scoring(conn, intent_md="intent", agent=agent)
+    score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test")
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
 
 
@@ -71,7 +71,7 @@ def test_run_scoring_fails_fast_when_agent_unavailable(tmp_path):
     _screened(conn, "AI Engineer", 70)
     agent = _FakeAgent(exc=ClaudeUnavailable("claude usage limit reached"))
     with pytest.raises(ClaudeUnavailable):
-        score.run_scoring(conn, intent_md="intent", agent=agent)
+        score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test")
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 0
 
 
@@ -87,7 +87,7 @@ def test_run_scoring_since_filters_on_posting_date(tmp_path):
     agent = _FakeAgent(verdict={
         "grade": "A", "reasoning": "ok", "archetype": "lab",
         "comp_signal": "", "red_flags": []})
-    score.run_scoring(conn, intent_md="intent", agent=agent,
+    score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test",
                       posted_since="2026-07-21T00:00:00+00:00")
 
     scored = dbmod.jobs_by_status(conn, "scored")
@@ -104,7 +104,7 @@ def test_run_scoring_limit_takes_highest_fit_scores_first(tmp_path):
     agent = _FakeAgent(verdict={
         "grade": "A", "reasoning": "ok", "archetype": "lab",
         "comp_signal": "", "red_flags": []})
-    score.run_scoring(conn, intent_md="intent", agent=agent, limit=1)
+    score.run_scoring(conn, intent_md="intent", agent=agent, limit=1, brief_sha="test")
 
     scored = dbmod.jobs_by_status(conn, "scored")
     assert len(scored) == 1 and scored[0].url == "https://x/high"
@@ -119,7 +119,7 @@ def test_run_scoring_persists_the_cost_of_each_call(tmp_path):
     agent = _FakeAgent(verdict={
         "grade": "A", "reasoning": "ok", "archetype": "lab",
         "comp_signal": "", "red_flags": []}, cost=0.0084)
-    score.run_scoring(conn, intent_md="intent", agent=agent)
+    score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test")
     assert dbmod.jobs_by_status(conn, "scored")[0].cost_usd == 0.0084
     assert dbmod.total_cost(conn) == (0.0084, 1)
 
@@ -129,5 +129,59 @@ def test_run_scoring_prices_a_failed_grade(tmp_path):
     dbmod.init_db(conn)
     _screened(conn, "AI Engineer", 70)
     agent = _FakeAgent(exc=RuntimeError("bad json"), cost=0.005)
-    score.run_scoring(conn, intent_md="intent", agent=agent)
+    score.run_scoring(conn, intent_md="intent", agent=agent, brief_sha="test")
     assert dbmod.jobs_by_status(conn, "score_error")[0].cost_usd == 0.005
+
+
+def test_run_scoring_records_the_brief_sha_on_every_grade(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, Job(url="https://x/1", company="Acme",
+                               title="AI Engineer", location="NYC",
+                               source="ats:greenhouse", ats="greenhouse",
+                               raw_text="d"))
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_screen(conn, job.id, status="screened_in", fit_score=80,
+                     screen_reason="ok")
+
+    class _Agent:
+        last_cost_usd = None
+        total_cost_usd = 0.0
+        calls = 0
+
+        def chat_json(self, system, user):
+            return {"grade": "A", "reasoning": "r", "archetype": "lab",
+                    "comp_signal": "", "red_flags": []}
+
+    score.run_scoring(conn, intent_md="brief", agent=_Agent(),
+                      brief_sha="sha-under-test")
+
+    shas = [r[0] for r in conn.execute("SELECT brief_sha FROM grade_history")]
+    assert shas == ["sha-under-test"]
+
+
+def test_a_failed_grade_still_records_provenance(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, Job(url="https://x/2", company="Acme",
+                               title="AI Engineer", location="NYC",
+                               source="ats:greenhouse", ats="greenhouse",
+                               raw_text="d"))
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_screen(conn, job.id, status="screened_in", fit_score=80,
+                     screen_reason="ok")
+
+    class _Agent:
+        last_cost_usd = 0.01
+        total_cost_usd = 0.01
+        calls = 1
+
+        def chat_json(self, system, user):
+            raise ValueError("bad json")
+
+    score.run_scoring(conn, intent_md="brief", agent=_Agent(),
+                      brief_sha="sha-under-test")
+
+    rows = conn.execute(
+        "SELECT grade, brief_sha FROM grade_history").fetchall()
+    assert [tuple(r) for r in rows] == [(None, "sha-under-test")]

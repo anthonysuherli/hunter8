@@ -1,6 +1,8 @@
 # tests/test_rubric.py
 from pathlib import Path
 
+import pytest
+
 import rubric
 
 
@@ -125,3 +127,31 @@ def test_brief_is_cached_on_the_intent_hash(tmp_path):
     rubric.load_or_build(intent, out, agent, profile=rubric.GRADE)
     rubric.load_or_build(intent, out, agent, profile=rubric.GRADE)
     assert len(agent.systems) == 1   # second call served from cache
+
+
+def test_provenance_sha_reads_the_hash_stamped_in_the_brief(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile text", encoding="utf-8")
+    brief = tmp_path / "brief.md"
+    brief.write_text(rubric._render("body", "", "deadbeef", "Grading Brief"),
+                     encoding="utf-8")
+    assert rubric.provenance_sha(intent, brief, full_intent=False) == "deadbeef"
+
+
+def test_provenance_sha_uses_intent_hash_under_full_intent(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile text", encoding="utf-8")
+    brief = tmp_path / "brief.md"
+    brief.write_text(rubric._render("body", "", "deadbeef", "Grading Brief"),
+                     encoding="utf-8")
+    expected = rubric._hash("profile text")
+    assert rubric.provenance_sha(intent, brief, full_intent=True) == expected
+
+
+def test_provenance_sha_refuses_when_the_brief_has_no_stamp(tmp_path):
+    intent = tmp_path / "intent.md"
+    intent.write_text("profile text", encoding="utf-8")
+    brief = tmp_path / "brief.md"
+    brief.write_text("# Grading Brief\n\nno hash stamp here\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        rubric.provenance_sha(intent, brief, full_intent=False)

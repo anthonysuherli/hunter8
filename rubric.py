@@ -139,3 +139,28 @@ def load_or_build(intent_path: Path, rubric_path: Path, agent,
     rubric_path.write_text(_render(body, human, intent_hash, profile.title),
                            encoding="utf-8")
     return rubric_path.read_text(encoding="utf-8")
+
+
+def provenance_sha(intent_path: Path, brief_path: Path, *,
+                   full_intent: bool) -> str:
+    """The sha256 of whichever document actually graded a job.
+
+    Under `--full-intent` that is `intent.md` itself; otherwise it is the hash
+    already stamped into the cached brief by `_render`, read back rather than
+    recomputed so the recorded value is exactly what the grader read.
+
+    Refuses rather than returning None: a graded row with no provenance would
+    make the grade-movement analysis quietly wrong instead of visibly
+    incomplete."""
+    if full_intent:
+        return _hash(intent_path.read_text(encoding="utf-8"))
+    if not brief_path.exists():
+        raise SystemExit(f"{brief_path} does not exist — cannot record which "
+                         f"brief graded these jobs. Run score.py once to build it.")
+    sha = _stored_hash(brief_path.read_text(encoding="utf-8"))
+    if not sha:
+        raise SystemExit(
+            f"{brief_path} carries no {_HASH_PREFIX.strip()} stamp. Delete it and "
+            f"let rubric.py regenerate it, or the grade history cannot say which "
+            f"brief produced a grade.")
+    return sha
