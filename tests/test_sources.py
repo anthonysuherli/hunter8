@@ -182,3 +182,33 @@ def test_repair_converts_epoch_rows_and_leaves_iso_alone(tmp_path):
     assert by_url["https://x/iso"].posted_at == "2026-07-23T00:00:00+00:00"
 
     assert sources.repair_lever_posted_at(conn) == 0     # idempotent
+
+
+def test_lever_out_of_range_created_at_yields_none_not_a_crash():
+    """int() accepts an absurd number that datetime.fromtimestamp then rejects
+    with OSError. Uncaught, one malformed posting cost the entire board fetch."""
+    payload = [{"hostedUrl": "https://jobs.lever.co/acme/3", "text": "T",
+                "categories": {}, "createdAt": 99999999999999999999,
+                "descriptionPlain": ""}]
+    jobs = sources.parse_lever(payload, company="Acme")
+    assert len(jobs) == 1                    # the board still parses
+    assert jobs[0].posted_at is None         # just without a date
+
+
+def test_repair_skips_an_out_of_range_value_and_keeps_going(tmp_path):
+    """One unconvertible row must not abort the repair for the rest."""
+    import db as dbmod
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, Job(url="https://x/bad", company="Bad", title="T",
+                               location="NYC", source="ats:lever", ats="lever",
+                               posted_at="99999999999999999999", raw_text="d"))
+    dbmod.insert_job(conn, Job(url="https://x/good", company="Good", title="T",
+                               location="NYC", source="ats:lever", ats="lever",
+                               posted_at="1784811226989", raw_text="d"))
+
+    assert sources.repair_lever_posted_at(conn) == 1      # the good one converted
+
+    by_url = {j.url: j for j in dbmod.jobs_by_status(conn, "discovered")}
+    assert by_url["https://x/good"].posted_at == "2026-07-23T12:53:46.989000+00:00"
+    assert by_url["https://x/bad"].posted_at == "99999999999999999999"   # left as-is

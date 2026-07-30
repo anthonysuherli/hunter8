@@ -66,7 +66,13 @@ def _epoch_ms_to_iso(value) -> str | None:
         ms = int(value)
     except (TypeError, ValueError):
         return None
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat()
+    try:
+        return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat()
+    except (OSError, OverflowError):
+        # int() rejects non-numerics, but an in-range int can still be out of
+        # range for a timestamp — and one malformed posting must not cost the
+        # whole board.
+        return None
 
 
 def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[Job]:
