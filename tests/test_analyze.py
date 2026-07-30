@@ -142,6 +142,27 @@ def test_shortlist_does_not_swallow_an_unrelated_database_error(tmp_path):
             analyze.collect_shortlist(conn)
 
 
+def test_shortlist_renders_a_grade_with_no_fit_score(tmp_path):
+    """85 rows were graded before the screening tier existed, so they carry no
+    fit_score. The prose renderer used to format None with :>3 and die — on the
+    exact command the triage flow runs."""
+    conn = _conn(tmp_path)
+    dbmod.insert_job(conn, Job(url="https://x/unscreened", company="Hebbia",
+                               title="AI Engineer", location="NYC",
+                               source="ats:greenhouse", ats="greenhouse",
+                               raw_text="d"))
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_score(conn, job.id, status="scored", grade="A", reasoning="why",
+                    archetype="lab", comp_signal="", red_flags="[]",
+                    brief_sha="sha")
+
+    out = analyze.collect_shortlist(conn)
+    assert out["jobs"][0]["fit_score"] is None
+
+    rendered = analyze._render_shortlist(out)     # must not raise
+    assert "Hebbia" in rendered
+
+
 def test_patterns_reports_grade_rates_per_bucket(tmp_path):
     conn = _conn(tmp_path)
     _scored(conn, url="https://x/1", grade="A", company="Acme")

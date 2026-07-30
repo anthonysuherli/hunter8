@@ -96,7 +96,11 @@ def _render_shortlist(p: dict) -> str:
     lines = [f"{p['count']} graded job(s), {p['new_count']} new:"]
     for j in p["jobs"]:
         flag = " *new*" if j["is_new"] else ""
-        lines.append(f"  [{j['grade']} {j['fit_score']:>3}] {j['company']} — "
+        # 85 scored rows predate the screening tier and carry no fit_score at
+        # all. That is a permanent state, not missing data, so show it as "—"
+        # rather than crashing the report the triage flow depends on.
+        score = "—" if j["fit_score"] is None else str(j["fit_score"])
+        lines.append(f"  [{j['grade']} {score:>3}] {j['company']} — "
                      f"{j['title']} ({j['location']}){flag}")
         lines.append(f"        {j['url']}")
     if p["movements"]:
