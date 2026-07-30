@@ -69,3 +69,54 @@ def test_priority_from_grade():
     assert triage.priority_from_grade("A").startswith("A")
     assert triage.priority_from_grade("B").startswith("B")
     assert triage.priority_from_grade("C").startswith("C")
+
+
+def test_approve_ids_writes_rows_and_reports_each(tmp_path):
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _scored_job(conn)
+    job = dbmod.jobs_by_status(conn, "scored")[0]
+
+    results = triage.approve_ids(conn, [job.id], tracker)
+
+    assert results == [{"id": job.id, "ok": True,
+                        "detail": "Acme — ML Engineer"}]
+    assert len(dbmod.jobs_by_status(conn, "approved")) == 1
+
+
+def test_approve_ids_reports_an_unknown_id_without_aborting_the_rest(tmp_path):
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _scored_job(conn)
+    job = dbmod.jobs_by_status(conn, "scored")[0]
+
+    results = triage.approve_ids(conn, [99999, job.id], tracker)
+
+    assert results[0]["ok"] is False and "no job" in results[0]["detail"]
+    assert results[1]["ok"] is True
+    assert len(dbmod.jobs_by_status(conn, "approved")) == 1
+
+
+def test_approving_an_already_approved_job_is_an_idempotent_no_op(tmp_path):
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _scored_job(conn)
+    job = dbmod.jobs_by_status(conn, "scored")[0]
+    triage.approve_ids(conn, [job.id], tracker)
+
+    results = triage.approve_ids(conn, [job.id], tracker)
+
+    assert results[0]["ok"] is False
+    assert "already approved" in results[0]["detail"]
+    wb = openpyxl.load_workbook(tracker)
+    assert wb["Apply Tracker"].max_row == 2   # header + one row, not two
+
+
+def test_approve_ids_on_an_empty_list_does_nothing(tmp_path):
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    assert triage.approve_ids(conn, [], tracker) == []
