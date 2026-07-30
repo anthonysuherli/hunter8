@@ -28,8 +28,9 @@ Grade to review: $1 (default `A`).
    command's own priority, not a ranking the user asked for, so "the top
    three" without explicit ids needs a follow-up question too. Approval is
    the gate; a guessed approval cannot be undone once apply runs.
-6. Run `.venv/bin/python triage.py --approve <ids> --tracker "$TRACKER_PATH"`
-   with only the ids the user named.
+6. Run `.venv/bin/python triage.py --approve <ids>` with only the ids the user
+   named. Do not pass `--tracker` — the CLI reads `TRACKER_PATH` from `.env`
+   itself; the shell never has it.
 7. Report each line the command printed. If any id failed — a locked workbook,
    an already-approved row — say which, and do not retry silently.
 8. Tell the user the rows are queued and that `apply.py` is still run by hand.

@@ -54,7 +54,7 @@ repo, then run from the repo root:
 | `/hunter8:morning [days]` | Preflight, run the pipeline, write `reports/YYYY-MM-DD.md`, offer triage |
 | `/hunter8:triage [grade]` | Present graded jobs with reasoning, write approvals to the tracker |
 | `/hunter8:health` | Queue counts, threshold drift, screen-vs-Claude agreement, cost |
-| `/hunter8:coverage [days]` | Silent and stale watchlist boards, proposed additions |
+| `/hunter8:coverage [stale-days]` | Silent and stale watchlist boards, proposed additions |
 
 The commands shell out to `analyze.py`, which is read-only and has `--json` on
 every subcommand — so the same reports work from a plain terminal with no Claude

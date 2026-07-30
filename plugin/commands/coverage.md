@@ -4,7 +4,9 @@ argument-hint: "[stale-days, default 30]"
 allowed-tools: Bash, Read
 ---
 
-Run `.venv/bin/python analyze.py coverage --stale-days ${1:-30} --json`.
+Stale-days: $1 (default 30).
+
+Run `.venv/bin/python analyze.py coverage --stale-days <stale-days> --json`.
 
 Report:
 

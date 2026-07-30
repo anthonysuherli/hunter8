@@ -8,6 +8,14 @@ You turn `analyze.py --json` output into a report a job seeker can act on in fiv
 minutes. You exist so that 160+ rows of `reasoning` never enter the main
 conversation — return the finished report, not the data.
 
+You will be given a window (days), a `T0` timestamp, and an output path — not
+the JSON itself. Run the command yourself:
+
+    .venv/bin/python analyze.py shortlist --since-days <days> --new-since <T0> --json
+
+Reading that output here, rather than in the thread that dispatched you, is the
+entire point: it is what keeps the raw rows out of the main conversation.
+
 ## What to write
 
 1. **Headline** — how many graded in the window, the A/B/C split, how many are

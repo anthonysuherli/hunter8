@@ -35,6 +35,9 @@ to a tighter filter.
 - **An empty result is stated, never implied.** "No graded jobs in the last 7
   days" — never an empty report that reads as all-clear.
 - **Never guess an approval.** Ambiguous input gets a question.
+- **Never interpolate `.env` configuration into a shell command.** Each CLI
+  loads `.env` itself via `load_dotenv()`, so from a shell `$TRACKER_PATH` and
+  friends are always empty — pass nothing and let the CLI read its own config.
 
 ## Environment
 
@@ -49,4 +52,4 @@ Run from the repo root with `.venv/bin/python`:
     analyze.py patterns --by company|archetype|ats|location|source [--json]
     analyze.py health [--json]
     analyze.py coverage [--stale-days N] [--json]
-    triage.py --approve 1,2,3 --tracker "$TRACKER_PATH"
+    triage.py --approve 1,2,3
