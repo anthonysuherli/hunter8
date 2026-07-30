@@ -110,9 +110,12 @@ _DIMENSIONS = {"company": "company", "archetype": "archetype", "ats": "ats",
                "location": "location", "source": "source"}
 
 
-def collect_patterns(conn: sqlite3.Connection, *, by: str) -> dict:
+def collect_patterns(conn: sqlite3.Connection, *, by: str, min_n: int = 3) -> dict:
     """Grade rates per bucket — which companies, archetypes, boards and
-    locations actually convert, rather than which produce the most rows."""
+    locations actually convert, rather than which produce the most rows.
+
+    Buckets with fewer than `min_n` jobs are marked as low-sample and sort
+    below higher-volume buckets, since a rate over a handful of jobs is noise."""
     column = _DIMENSIONS.get(by)
     if column is None:
         raise ValueError(f"by must be one of {sorted(_DIMENSIONS)}, got {by!r}")
@@ -126,9 +129,11 @@ def collect_patterns(conn: sqlite3.Connection, *, by: str) -> dict:
         a, b, c = int(a or 0), int(b or 0), int(c or 0)
         buckets.append({"key": key, "n": int(n), "a": a, "b": b, "c": c,
                         "a_rate": a / n if n else 0.0,
-                        "ab_rate": (a + b) / n if n else 0.0})
-    buckets.sort(key=lambda x: (-x["a_rate"], -x["n"], x["key"]))
-    return {"by": by, "total": sum(x["n"] for x in buckets), "buckets": buckets}
+                        "ab_rate": (a + b) / n if n else 0.0,
+                        "low_sample": int(n) < min_n})
+    buckets.sort(key=lambda x: (x["low_sample"], -x["a_rate"], -x["n"], x["key"]))
+    return {"by": by, "total": sum(x["n"] for x in buckets), "buckets": buckets,
+            "min_n": min_n}
 
 
 def _render_patterns(p: dict) -> str:
@@ -137,8 +142,9 @@ def _render_patterns(p: dict) -> str:
     lines = [f"Grade rates by {p['by']} ({p['total']} graded):",
              f"  {'key':<34} {'n':>4} {'A':>3} {'B':>3} {'C':>3} {'A%':>6} {'AB%':>6}"]
     for b in p["buckets"]:
+        marker = " (low n)" if b["low_sample"] else ""
         lines.append(f"  {b['key'][:34]:<34} {b['n']:>4} {b['a']:>3} {b['b']:>3} "
-                     f"{b['c']:>3} {b['a_rate']:>5.0%} {b['ab_rate']:>5.0%}")
+                     f"{b['c']:>3} {b['a_rate']:>5.0%} {b['ab_rate']:>5.0%}{marker}")
     return "\n".join(lines)
 
 
@@ -176,11 +182,13 @@ def shortlist(db_path: Path | None, since_days: int | None,
 @click.option("--by", default="archetype",
               type=click.Choice(sorted(_DIMENSIONS)),
               help="Dimension to bucket by.")
+@click.option("--min-n", "min_n", default=3, type=int,
+              help="Buckets with fewer jobs than this sort last, as low-sample.")
 @_json_option
-def patterns(db_path: Path | None, by: str, as_json: bool) -> None:
+def patterns(db_path: Path | None, by: str, min_n: int, as_json: bool) -> None:
     """Grade rates per bucket."""
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
-    _emit(collect_patterns(conn, by=by), as_json, _render_patterns)
+    _emit(collect_patterns(conn, by=by, min_n=min_n), as_json, _render_patterns)
 
 
 if __name__ == "__main__":

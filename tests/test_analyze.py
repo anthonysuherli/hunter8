@@ -174,3 +174,60 @@ def test_patterns_handles_an_empty_corpus(tmp_path):
     conn = _conn(tmp_path)
     out = analyze.collect_patterns(conn, by="archetype")
     assert out["total"] == 0 and out["buckets"] == []
+
+
+def test_patterns_demotes_thin_buckets_below_larger_ones(tmp_path):
+    """A single lucky A must not outrank a company with a real track record —
+    the rate alone put statistical noise at the top of the report."""
+    conn = _conn(tmp_path)
+    for i in range(4):
+        _scored(conn, url=f"https://x/big{i}", grade="A", company="Bulk")
+    _scored(conn, url="https://x/big-miss", grade="C", company="Bulk")
+    _scored(conn, url="https://x/thin", grade="A", company="Lucky")
+
+    out = analyze.collect_patterns(conn, by="company", min_n=3)
+    buckets = {b["key"]: b for b in out["buckets"]}
+
+    assert buckets["Lucky"]["a_rate"] == 1.0        # still the higher rate
+    assert buckets["Bulk"]["a_rate"] == 0.8
+    assert out["buckets"][0]["key"] == "Bulk"       # but volume wins the top slot
+    assert buckets["Lucky"]["low_sample"] is True
+    assert buckets["Bulk"]["low_sample"] is False
+    assert out["min_n"] == 3
+
+
+def test_patterns_respects_min_n_parameter(tmp_path):
+    """With min_n=1, a single job is not marked low-sample and can rank by rate."""
+    conn = _conn(tmp_path)
+    for i in range(4):
+        _scored(conn, url=f"https://x/big{i}", grade="A", company="Bulk")
+    _scored(conn, url="https://x/big-miss", grade="C", company="Bulk")
+    _scored(conn, url="https://x/thin", grade="A", company="Lucky")
+
+    out = analyze.collect_patterns(conn, by="company", min_n=1)
+    buckets = {b["key"]: b for b in out["buckets"]}
+
+    assert buckets["Lucky"]["low_sample"] is False
+    assert buckets["Bulk"]["low_sample"] is False
+    assert out["buckets"][0]["key"] == "Lucky"      # now rate alone determines order
+    assert out["min_n"] == 1
+
+
+def test_patterns_tiebreaks_by_volume_within_same_rate_tier(tmp_path):
+    """Two buckets with the same A-rate and different sizes; larger sorts first.
+    Both must clear min_n so we're testing the -n term, not the low_sample flag."""
+    conn = _conn(tmp_path)
+    # Small bucket with perfect rate
+    for i in range(3):
+        _scored(conn, url=f"https://x/small{i}", grade="A", company="Small")
+    # Larger bucket with same rate
+    for i in range(6):
+        _scored(conn, url=f"https://x/large{i}", grade="A", company="Large")
+
+    out = analyze.collect_patterns(conn, by="company", min_n=3)
+    buckets = {b["key"]: b for b in out["buckets"]}
+
+    assert buckets["Small"]["a_rate"] == buckets["Large"]["a_rate"] == 1.0
+    assert buckets["Small"]["low_sample"] is False
+    assert buckets["Large"]["low_sample"] is False
+    assert out["buckets"][0]["key"] == "Large"      # larger volume wins the tiebreak
