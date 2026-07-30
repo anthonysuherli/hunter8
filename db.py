@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS jobs (
   cost_usd      REAL
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE TABLE IF NOT EXISTS grade_history (
+  id        INTEGER PRIMARY KEY,
+  job_id    INTEGER NOT NULL,
+  grade     TEXT,
+  fit_score INTEGER,
+  brief_sha TEXT,
+  scored_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_grade_history_job ON grade_history(job_id);
 """
 
 
@@ -163,14 +172,62 @@ def set_score(
     conn: sqlite3.Connection, job_id: int, *, status: str, grade: str | None,
     reasoning: str | None, archetype: str | None, comp_signal: str | None,
     red_flags: str | None, cost_usd: float | None = None,
+    brief_sha: str | None = None,
 ) -> None:
+    """Write a grade and append an immutable history row.
+
+    `jobs.grade` is overwritten in place, so without the history append a grade
+    that moved is unrecoverable. `brief_sha` identifies the distilled document
+    that produced this grade, which is what makes "what did my intent.md edit do
+    to the corpus?" a query rather than an inference from wall-clock timestamps."""
+    now = _now()
     conn.execute(
         """UPDATE jobs SET status=?, grade=?, reasoning=?, archetype=?,
            comp_signal=?, red_flags=?, cost_usd=?, scored_at=? WHERE id=?""",
         (status, grade, reasoning, archetype, comp_signal, red_flags, cost_usd,
-         _now(), job_id),
+         now, job_id),
+    )
+    fit_score = conn.execute(
+        "SELECT fit_score FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
+    conn.execute(
+        """INSERT INTO grade_history (job_id, grade, fit_score, brief_sha, scored_at)
+           VALUES (?,?,?,?,?)""",
+        (job_id, grade, fit_score, brief_sha, now),
     )
     conn.commit()
+
+
+def grade_movements(conn: sqlite3.Connection, *,
+                    since: str | None = None) -> list[dict]:
+    """Jobs whose grade changed between their first and most recent history row.
+
+    Only movement is reported — a job graded B twice is not news. `since` filters
+    on the *later* of the two gradings, so a run's report covers what this run
+    changed."""
+    sql = """
+      WITH firsts AS (
+        SELECT job_id, grade, brief_sha, scored_at,
+               ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY id ASC) AS rn
+        FROM grade_history),
+      lasts AS (
+        SELECT job_id, grade, brief_sha, scored_at,
+               ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY id DESC) AS rn
+        FROM grade_history)
+      SELECT j.id, j.company, j.title,
+             f.grade, l.grade, f.brief_sha, l.brief_sha, l.scored_at
+      FROM firsts f
+      JOIN lasts  l ON l.job_id = f.job_id AND l.rn = 1
+      JOIN jobs   j ON j.id     = f.job_id
+      WHERE f.rn = 1 AND IFNULL(f.grade,'') != IFNULL(l.grade,'')
+    """
+    params: list = []
+    if since is not None:
+        sql += " AND l.scored_at >= ?"
+        params.append(since)
+    sql += " ORDER BY l.scored_at DESC"
+    keys = ("job_id", "company", "title", "from_grade", "to_grade",
+            "from_brief_sha", "to_brief_sha", "changed_at")
+    return [dict(zip(keys, tuple(r))) for r in conn.execute(sql, params).fetchall()]
 
 
 def total_cost(conn: sqlite3.Connection, *, since: str | None = None) -> tuple[float, int]:

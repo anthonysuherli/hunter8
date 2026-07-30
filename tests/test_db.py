@@ -168,3 +168,66 @@ def test_posted_since_uses_posted_at_when_present_even_if_recently_discovered(tm
 
     assert dbmod.jobs_by_status(conn, "discovered",
                                 posted_since="2026-07-21T00:00:00+00:00") == []
+
+
+def test_grade_history_table_is_created_on_a_legacy_database(tmp_path):
+    """A new table must appear via CREATE TABLE IF NOT EXISTS in _SCHEMA, not
+    via _MIGRATIONS (which only adds columns to jobs)."""
+    path = tmp_path / "legacy.db"
+    conn = dbmod.connect(path)
+    conn.executescript(_legacy_schema_sql())
+    conn.commit()
+    dbmod.init_db(conn)
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "grade_history" in tables
+
+
+def test_set_score_appends_history_with_provenance(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, _job())
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_score(conn, job.id, status="scored", grade="B", reasoning="r",
+                    archetype="", comp_signal="", red_flags="[]",
+                    brief_sha="abc123")
+    rows = conn.execute(
+        "SELECT job_id, grade, brief_sha FROM grade_history").fetchall()
+    assert [tuple(r) for r in rows] == [(job.id, "B", "abc123")]
+
+
+def test_rescoring_appends_rather_than_overwrites(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, _job())
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    for grade, sha in (("C", "sha-old"), ("A", "sha-new")):
+        dbmod.set_score(conn, job.id, status="scored", grade=grade, reasoning="r",
+                        archetype="", comp_signal="", red_flags="[]",
+                        brief_sha=sha)
+    grades = [r[0] for r in conn.execute(
+        "SELECT grade FROM grade_history ORDER BY id")]
+    assert grades == ["C", "A"]
+
+
+def test_grade_movements_reports_only_changed_grades(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, _job(url="https://x/moved"))
+    dbmod.insert_job(conn, _job(url="https://x/stable", company="Stable"))
+    moved, stable = dbmod.jobs_by_status(conn, "discovered")
+
+    for grade, sha in (("C", "old"), ("A", "new")):
+        dbmod.set_score(conn, moved.id, status="scored", grade=grade,
+                        reasoning="r", archetype="", comp_signal="",
+                        red_flags="[]", brief_sha=sha)
+    for grade, sha in (("B", "old"), ("B", "new")):
+        dbmod.set_score(conn, stable.id, status="scored", grade=grade,
+                        reasoning="r", archetype="", comp_signal="",
+                        red_flags="[]", brief_sha=sha)
+
+    out = dbmod.grade_movements(conn)
+    assert len(out) == 1
+    assert out[0]["job_id"] == moved.id
+    assert (out[0]["from_grade"], out[0]["to_grade"]) == ("C", "A")
+    assert (out[0]["from_brief_sha"], out[0]["to_brief_sha"]) == ("old", "new")
