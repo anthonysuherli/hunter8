@@ -231,3 +231,85 @@ def test_patterns_tiebreaks_by_volume_within_same_rate_tier(tmp_path):
     assert buckets["Small"]["low_sample"] is False
     assert buckets["Large"]["low_sample"] is False
     assert out["buckets"][0]["key"] == "Large"      # larger volume wins the tiebreak
+
+
+_STATUSES = ("discovered", "screened_in", "screened_out", "scored",
+             "screen_error", "score_error", "approved", "skipped", "snoozed")
+
+
+def test_health_counts_every_queue_status(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A")
+    dbmod.insert_job(conn, Job(url="https://x/2", company="Acme", title="T",
+                               location="NYC", source="ats:greenhouse",
+                               ats="greenhouse", raw_text="d"))
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "missing.md",
+                                 intent_path=tmp_path / "intent.md")
+    assert out["queue"]["scored"] == 1
+    assert out["queue"]["discovered"] == 1
+    assert set(out["queue"]) >= set(_STATUSES)
+
+
+def test_health_flags_a_threshold_that_disagrees_with_calibration(tmp_path):
+    conn = _conn(tmp_path)
+    report = tmp_path / "calibration-report.md"
+    report.write_text("**Recommended threshold: 65** — keeps 100% of Claude-A\n",
+                      encoding="utf-8")
+    intent = tmp_path / "intent.md"
+    intent.write_text("x", encoding="utf-8")
+    out = analyze.collect_health(conn, threshold_in_effect=25,
+                                 calibration_path=report, intent_path=intent)
+    assert out["threshold"]["in_effect"] == 25
+    assert out["threshold"]["recommended"] == 65
+    assert out["threshold"]["disagrees"] is True
+
+
+def test_health_reports_a_missing_calibration_report(tmp_path):
+    conn = _conn(tmp_path)
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "nope.md",
+                                 intent_path=tmp_path / "intent.md")
+    assert out["threshold"]["recommended"] is None
+    assert out["threshold"]["report_missing"] is True
+
+
+def test_health_flags_calibration_older_than_intent(tmp_path):
+    import os
+    import time
+    conn = _conn(tmp_path)
+    report = tmp_path / "calibration-report.md"
+    report.write_text("**Recommended threshold: 65**\n", encoding="utf-8")
+    intent = tmp_path / "intent.md"
+    intent.write_text("x", encoding="utf-8")
+    now = time.time()
+    os.utime(report, (now - 600, now - 600))
+    os.utime(intent, (now, now))
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=report, intent_path=intent)
+    assert out["threshold"]["stale"] is True
+
+
+def test_health_surfaces_error_rows_with_reasons(tmp_path):
+    conn = _conn(tmp_path)
+    dbmod.insert_job(conn, Job(url="https://x/e", company="Acme", title="T",
+                               location="NYC", source="ats:greenhouse",
+                               ats="greenhouse", raw_text="d"))
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_screen(conn, job.id, status="screen_error", fit_score=None,
+                     screen_reason="ollama exploded")
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "n.md",
+                                 intent_path=tmp_path / "i.md")
+    assert out["errors"][0]["reason"] == "ollama exploded"
+
+
+def test_health_reports_agreement_without_calling_a_model(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/a", grade="A", fit_score=90)
+    _scored(conn, url="https://x/c", grade="C", fit_score=10)
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "n.md",
+                                 intent_path=tmp_path / "i.md")
+    assert out["agreement"]["sample"] == 2
+    assert out["agreement"]["a_recall_at_threshold"] == 1.0

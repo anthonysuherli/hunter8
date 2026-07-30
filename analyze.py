@@ -12,6 +12,8 @@ with a flag here rather than being silently upgraded or crashing.
 from __future__ import annotations
 
 import json as jsonlib
+import os
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,7 +21,9 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
+import calibrate
 import db as dbmod
+import screen as screenmod
 
 load_dotenv()
 
@@ -148,6 +152,103 @@ def _render_patterns(p: dict) -> str:
     return "\n".join(lines)
 
 
+_QUEUE_STATUSES = ("discovered", "screened_in", "screened_out", "scored",
+                   "approved", "skipped", "snoozed", "screen_error",
+                   "score_error", "filtered_out")
+_RECOMMENDED_RE = re.compile(r"Recommended threshold:\s*(\d+)")
+
+
+def _threshold_state(threshold_in_effect: int, calibration_path: Path,
+                     intent_path: Path) -> dict:
+    """Compare the threshold actually in force against the calibrated one.
+
+    Three separate failure modes, reported separately: they disagree, the report
+    was never generated, or the report predates the profile it was measured
+    against."""
+    state = {"in_effect": threshold_in_effect, "recommended": None,
+             "disagrees": False, "report_missing": False, "stale": False}
+    if not calibration_path.exists():
+        state["report_missing"] = True
+        return state
+    match = _RECOMMENDED_RE.search(calibration_path.read_text(encoding="utf-8"))
+    if match:
+        state["recommended"] = int(match.group(1))
+        state["disagrees"] = state["recommended"] != threshold_in_effect
+    if intent_path.exists():
+        state["stale"] = (os.path.getmtime(calibration_path)
+                          < os.path.getmtime(intent_path))
+    return state
+
+
+def collect_health(conn: sqlite3.Connection, *, threshold_in_effect: int,
+                   calibration_path: Path, intent_path: Path) -> dict:
+    """Pipeline and calibration state: what is queued, what is misconfigured,
+    what failed and why, and what it has cost."""
+    queue = {s: len(dbmod.jobs_by_status(conn, s)) for s in _QUEUE_STATUSES}
+
+    errors = [
+        {"id": r[0], "company": r[1], "title": r[2], "status": r[3],
+         "reason": r[4] or r[5] or ""}
+        for r in conn.execute(
+            """SELECT id, company, title, status, screen_reason, reasoning
+               FROM jobs WHERE status IN ('screen_error','score_error')
+               ORDER BY id""").fetchall()]
+
+    pairs = [(str(g).upper(), int(f)) for g, f in conn.execute(
+        """SELECT grade, fit_score FROM jobs
+           WHERE status='scored' AND grade IS NOT NULL
+             AND fit_score IS NOT NULL""").fetchall()]
+    table = calibrate.agreement(pairs) if pairs else []
+    at = next((r for r in table if r["threshold"] == threshold_in_effect), None)
+    agreement = {
+        "sample": len(pairs),
+        "a_recall_at_threshold": at["a_recall"] if at else None,
+        "ab_recall_at_threshold": at["ab_recall"] if at else None,
+        "promoted_fraction_at_threshold": at["promoted_fraction"] if at else None,
+        "highest_threshold_with_full_a_recall":
+            calibrate.recommend(table) if table else None,
+    }
+
+    total, priced = dbmod.total_cost(conn)
+    return {
+        "queue": queue,
+        "errors": errors,
+        "threshold": _threshold_state(threshold_in_effect, calibration_path,
+                                      intent_path),
+        "agreement": agreement,
+        "cost": {"lifetime_usd": total, "priced_rows": priced},
+    }
+
+
+def _render_health(p: dict) -> str:
+    lines = ["Queue:"]
+    for status, n in p["queue"].items():
+        if n:
+            lines.append(f"  {status:<14} {n:>6}")
+    t = p["threshold"]
+    lines.append(f"Threshold in effect: {t['in_effect']}")
+    if t["report_missing"]:
+        lines.append("  ! no calibration-report.md — run calibrate.py")
+    if t["disagrees"]:
+        lines.append(f"  ! calibration recommends {t['recommended']}")
+    if t["stale"]:
+        lines.append("  ! calibration predates intent.md — re-run calibrate.py")
+    a = p["agreement"]
+    if a["sample"]:
+        lines.append(f"Agreement over {a['sample']} graded job(s): "
+                     f"A-recall {a['a_recall_at_threshold']:.0%} at the current "
+                     f"threshold; 100% A-recall holds to "
+                     f"{a['highest_threshold_with_full_a_recall']}")
+    if p["errors"]:
+        lines.append(f"{len(p['errors'])} error row(s):")
+        for e in p["errors"][:10]:
+            lines.append(f"  [{e['status']}] {e['company']} — {e['reason'][:60]}")
+    c = p["cost"]
+    lines.append(f"Cost: ${c['lifetime_usd']:.4f} notional across "
+                 f"{c['priced_rows']} priced row(s). Billed $0 — subscription auth.")
+    return "\n".join(lines)
+
+
 _db_option = click.option("--db", "db_path", default=None,
                           envvar="HUNTER8_DB_PATH", type=Path)
 _json_option = click.option("--json", "as_json", is_flag=True,
@@ -189,6 +290,27 @@ def patterns(db_path: Path | None, by: str, min_n: int, as_json: bool) -> None:
     """Grade rates per bucket."""
     conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
     _emit(collect_patterns(conn, by=by, min_n=min_n), as_json, _render_patterns)
+
+
+@main.command()
+@_db_option
+@click.option("--threshold", default=None, type=int,
+              envvar="HUNTER8_SCREEN_THRESHOLD",
+              help="Threshold to report as in force. Defaults to the configured one.")
+@click.option("--calibration", "calibration_path", default="calibration-report.md",
+              type=Path)
+@click.option("--intent", "intent_path", default="intent.md", type=Path)
+@_json_option
+def health(db_path: Path | None, threshold: int | None, calibration_path: Path,
+           intent_path: Path, as_json: bool) -> None:
+    """Queue counts, threshold drift, screen-vs-Claude agreement, cost."""
+    conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
+    _emit(collect_health(
+        conn,
+        threshold_in_effect=(threshold if threshold is not None
+                             else screenmod.DEFAULT_THRESHOLD),
+        calibration_path=calibration_path, intent_path=intent_path),
+        as_json, _render_health)
 
 
 if __name__ == "__main__":
