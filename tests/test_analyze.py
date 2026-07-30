@@ -313,3 +313,29 @@ def test_health_reports_agreement_without_calling_a_model(tmp_path):
                                  intent_path=tmp_path / "i.md")
     assert out["agreement"]["sample"] == 2
     assert out["agreement"]["a_recall_at_threshold"] == 1.0
+
+
+def test_health_does_not_crash_on_a_threshold_calibrate_never_sampled(tmp_path):
+    """calibrate.agreement only produces rows every 5, so a threshold like 67 has
+    no row and every *_at_threshold value is None. The renderer used to format
+    None with :.0% and die."""
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/a", grade="A", fit_score=90)
+    out = analyze.collect_health(conn, threshold_in_effect=67,
+                                 calibration_path=tmp_path / "none.md",
+                                 intent_path=tmp_path / "none.md")
+    assert out["agreement"]["sample"] == 1
+    assert out["agreement"]["a_recall_at_threshold"] is None
+    assert out["agreement"]["threshold_was_sampled"] is False
+    rendered = analyze._render_health(out)          # must not raise
+    assert "not one of the sampled points" in rendered
+
+
+def test_health_reports_agreement_normally_at_a_sampled_threshold(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/a", grade="A", fit_score=90)
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "none.md",
+                                 intent_path=tmp_path / "none.md")
+    assert out["agreement"]["threshold_was_sampled"] is True
+    assert "A-recall" in analyze._render_health(out)

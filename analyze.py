@@ -207,6 +207,7 @@ def collect_health(conn: sqlite3.Connection, *, threshold_in_effect: int,
         "promoted_fraction_at_threshold": at["promoted_fraction"] if at else None,
         "highest_threshold_with_full_a_recall":
             calibrate.recommend(table) if table else None,
+        "threshold_was_sampled": at is not None,
     }
 
     total, priced = dbmod.total_cost(conn)
@@ -234,11 +235,18 @@ def _render_health(p: dict) -> str:
     if t["stale"]:
         lines.append("  ! calibration predates intent.md — re-run calibrate.py")
     a = p["agreement"]
-    if a["sample"]:
+    if a["sample"] and a["a_recall_at_threshold"] is not None:
         lines.append(f"Agreement over {a['sample']} graded job(s): "
                      f"A-recall {a['a_recall_at_threshold']:.0%} at the current "
                      f"threshold; 100% A-recall holds to "
                      f"{a['highest_threshold_with_full_a_recall']}")
+    elif a["sample"]:
+        # calibrate samples every 5, so a threshold like 67 has no row. Say so
+        # rather than printing a recall figure for a point never evaluated.
+        lines.append(f"Agreement over {a['sample']} graded job(s): threshold "
+                     f"{p['threshold']['in_effect']} is not one of the sampled "
+                     f"points (calibrate evaluates every 5); 100% A-recall holds "
+                     f"to {a['highest_threshold_with_full_a_recall']}")
     if p["errors"]:
         lines.append(f"{len(p['errors'])} error row(s):")
         for e in p["errors"][:10]:
