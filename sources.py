@@ -57,6 +57,18 @@ def parse_ashby(payload: dict[str, Any], *, company: str) -> list[Job]:
     return out
 
 
+def _epoch_ms_to_iso(value) -> str | None:
+    """Lever returns createdAt as milliseconds since the epoch. Every other
+    source in this module yields ISO, and every date filter in the pipeline
+    compares posted_at as a *string* — so a raw epoch sorts below every ISO
+    cutoff and silently fails every --since-days run."""
+    try:
+        ms = int(value)
+    except (TypeError, ValueError):
+        return None
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat()
+
+
 def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[Job]:
     out: list[Job] = []
     for j in payload:
@@ -64,10 +76,33 @@ def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[Job]:
         out.append(Job(
             url=j["hostedUrl"], company=company, title=j.get("text", ""),
             location=cats.get("location", ""), source="ats:lever", ats="lever",
-            posted_at=str(j.get("createdAt", "")) or None,
+            posted_at=_epoch_ms_to_iso(j.get("createdAt")),
             raw_text=j.get("descriptionPlain", "") or "",
         ))
     return out
+
+
+def repair_lever_posted_at(conn) -> int:
+    """Convert stored millisecond-epoch posting dates to ISO. Returns the number
+    of rows changed.
+
+    Idempotent: rows already ISO are left alone, so this is safe to re-run. Only
+    touches rows whose posted_at is all digits, so it can never mangle a real
+    timestamp."""
+    rows = conn.execute(
+        "SELECT id, posted_at FROM jobs "
+        "WHERE posted_at IS NOT NULL AND posted_at <> '' "
+        "AND posted_at GLOB '[0-9]*' AND posted_at NOT GLOB '*[^0-9]*'"
+    ).fetchall()
+    changed = 0
+    for job_id, raw in rows:
+        iso = _epoch_ms_to_iso(raw)
+        if iso is None:
+            continue
+        conn.execute("UPDATE jobs SET posted_at=? WHERE id=?", (iso, job_id))
+        changed += 1
+    conn.commit()
+    return changed
 
 
 def parse_workday_detail(payload: dict[str, Any], *, company: str,

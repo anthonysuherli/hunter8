@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import sources
+from db import Job
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -142,3 +143,42 @@ def test_fetch_eightfold_advances_by_actual_page_size(monkeypatch):
     jobs = sources.fetch_eightfold(board="mlp/mlp.com", company="Millennium")
     assert [j.title for j in jobs] == ["a", "b", "c"]
     assert seen == [0, 2, 3]
+
+
+def test_lever_posted_at_is_stored_as_iso_not_an_epoch():
+    """Lever returns createdAt in milliseconds. Stored raw, it sorts below every
+    ISO cutoff as a string, so every --since-days run silently dropped all 301
+    Lever jobs."""
+    payload = [{"hostedUrl": "https://jobs.lever.co/acme/1", "text": "AI Engineer",
+                "categories": {"location": "NYC"}, "createdAt": 1784811226989,
+                "descriptionPlain": "d"}]
+    jobs = sources.parse_lever(payload, company="Acme")
+    assert jobs[0].posted_at == "2026-07-23T12:53:46.989000+00:00"
+    assert jobs[0].posted_at > "2026-07-01T00:00:00+00:00"   # sorts correctly now
+
+
+def test_lever_missing_created_at_is_none_not_a_crash():
+    payload = [{"hostedUrl": "https://jobs.lever.co/acme/2", "text": "T",
+                "categories": {}, "descriptionPlain": ""}]
+    assert sources.parse_lever(payload, company="Acme")[0].posted_at is None
+
+
+def test_repair_converts_epoch_rows_and_leaves_iso_alone(tmp_path):
+    import db as dbmod
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    dbmod.insert_job(conn, Job(url="https://x/epoch", company="Palantir", title="T",
+                               location="NYC", source="ats:lever", ats="lever",
+                               posted_at="1784811226989", raw_text="d"))
+    dbmod.insert_job(conn, Job(url="https://x/iso", company="Acme", title="T",
+                               location="NYC", source="ats:greenhouse",
+                               ats="greenhouse",
+                               posted_at="2026-07-23T00:00:00+00:00", raw_text="d"))
+
+    assert sources.repair_lever_posted_at(conn) == 1
+
+    by_url = {j.url: j for j in dbmod.jobs_by_status(conn, "discovered")}
+    assert by_url["https://x/epoch"].posted_at == "2026-07-23T12:53:46.989000+00:00"
+    assert by_url["https://x/iso"].posted_at == "2026-07-23T00:00:00+00:00"
+
+    assert sources.repair_lever_posted_at(conn) == 0     # idempotent
