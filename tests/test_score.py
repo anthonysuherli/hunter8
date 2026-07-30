@@ -144,16 +144,9 @@ def test_run_scoring_records_the_brief_sha_on_every_grade(tmp_path):
     dbmod.set_screen(conn, job.id, status="screened_in", fit_score=80,
                      screen_reason="ok")
 
-    class _Agent:
-        last_cost_usd = None
-        total_cost_usd = 0.0
-        calls = 0
-
-        def chat_json(self, system, user):
-            return {"grade": "A", "reasoning": "r", "archetype": "lab",
-                    "comp_signal": "", "red_flags": []}
-
-    score.run_scoring(conn, intent_md="brief", agent=_Agent(),
+    score.run_scoring(conn, intent_md="brief", agent=_FakeAgent(verdict={
+        "grade": "A", "reasoning": "r", "archetype": "lab",
+        "comp_signal": "", "red_flags": []}),
                       brief_sha="sha-under-test")
 
     shas = [r[0] for r in conn.execute("SELECT brief_sha FROM grade_history")]
@@ -171,15 +164,7 @@ def test_a_failed_grade_still_records_provenance(tmp_path):
     dbmod.set_screen(conn, job.id, status="screened_in", fit_score=80,
                      screen_reason="ok")
 
-    class _Agent:
-        last_cost_usd = 0.01
-        total_cost_usd = 0.01
-        calls = 1
-
-        def chat_json(self, system, user):
-            raise ValueError("bad json")
-
-    score.run_scoring(conn, intent_md="brief", agent=_Agent(),
+    score.run_scoring(conn, intent_md="brief", agent=_FakeAgent(exc=ValueError("bad json"), cost=0.01),
                       brief_sha="sha-under-test")
 
     rows = conn.execute(
