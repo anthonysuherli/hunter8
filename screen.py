@@ -24,7 +24,7 @@ from local_agent import LocalAgent, LocalUnavailable
 load_dotenv()
 log = logging.getLogger(__name__)
 
-DEFAULT_THRESHOLD = 25   # deliberately generous until calibrate.py says otherwise
+DEFAULT_THRESHOLD = 65   # calibrated 2026-07-28: highest value holding 100% A-recall
 
 _SYSTEM = (
     "You screen job postings for one candidate against the rubric below. "

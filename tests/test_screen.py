@@ -144,3 +144,10 @@ def test_unavailable_agent_stops_the_batch(tmp_path):
                              threshold=25)
     assert len(dbmod.jobs_by_status(conn, "screen_error")) == 0
     assert len(dbmod.jobs_by_status(conn, "discovered")) == 3
+
+
+def test_default_threshold_is_the_calibrated_value():
+    """65 is the highest threshold measured to hold 100% A-recall (vision,
+    2026-07-28). Shipping 25 as the default meant every run since calibration
+    screened at a value nobody chose."""
+    assert screen.DEFAULT_THRESHOLD == 65
