@@ -17,3 +17,4 @@ calibration-report.md
 apply-run-*.log
 hunter8.db.bak-*
 jobs-to-apply-*.md
+reports/
