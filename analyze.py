@@ -105,6 +105,43 @@ def _render_shortlist(p: dict) -> str:
     return "\n".join(lines)
 
 
+# Whitelisted so a --by value can never carry SQL into the query.
+_DIMENSIONS = {"company": "company", "archetype": "archetype", "ats": "ats",
+               "location": "location", "source": "source"}
+
+
+def collect_patterns(conn: sqlite3.Connection, *, by: str) -> dict:
+    """Grade rates per bucket — which companies, archetypes, boards and
+    locations actually convert, rather than which produce the most rows."""
+    column = _DIMENSIONS.get(by)
+    if column is None:
+        raise ValueError(f"by must be one of {sorted(_DIMENSIONS)}, got {by!r}")
+    rows = conn.execute(
+        f"""SELECT IFNULL(NULLIF({column}, ''), '(unset)') AS k,
+                   COUNT(*),
+                   SUM(grade='A'), SUM(grade='B'), SUM(grade='C')
+            FROM jobs WHERE status='scored' GROUP BY k""").fetchall()
+    buckets = []
+    for key, n, a, b, c in rows:
+        a, b, c = int(a or 0), int(b or 0), int(c or 0)
+        buckets.append({"key": key, "n": int(n), "a": a, "b": b, "c": c,
+                        "a_rate": a / n if n else 0.0,
+                        "ab_rate": (a + b) / n if n else 0.0})
+    buckets.sort(key=lambda x: (-x["a_rate"], -x["n"], x["key"]))
+    return {"by": by, "total": sum(x["n"] for x in buckets), "buckets": buckets}
+
+
+def _render_patterns(p: dict) -> str:
+    if not p["total"]:
+        return "No graded jobs to analyse."
+    lines = [f"Grade rates by {p['by']} ({p['total']} graded):",
+             f"  {'key':<34} {'n':>4} {'A':>3} {'B':>3} {'C':>3} {'A%':>6} {'AB%':>6}"]
+    for b in p["buckets"]:
+        lines.append(f"  {b['key'][:34]:<34} {b['n']:>4} {b['a']:>3} {b['b']:>3} "
+                     f"{b['c']:>3} {b['a_rate']:>5.0%} {b['ab_rate']:>5.0%}")
+    return "\n".join(lines)
+
+
 _db_option = click.option("--db", "db_path", default=None,
                           envvar="HUNTER8_DB_PATH", type=Path)
 _json_option = click.option("--json", "as_json", is_flag=True,
@@ -132,6 +169,18 @@ def shortlist(db_path: Path | None, since_days: int | None,
     grades = grade.split(",") if grade else None
     _emit(collect_shortlist(conn, since_days=since_days, new_since=new_since,
                             grades=grades), as_json, _render_shortlist)
+
+
+@main.command()
+@_db_option
+@click.option("--by", default="archetype",
+              type=click.Choice(sorted(_DIMENSIONS)),
+              help="Dimension to bucket by.")
+@_json_option
+def patterns(db_path: Path | None, by: str, as_json: bool) -> None:
+    """Grade rates per bucket."""
+    conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
+    _emit(collect_patterns(conn, by=by), as_json, _render_patterns)
 
 
 if __name__ == "__main__":

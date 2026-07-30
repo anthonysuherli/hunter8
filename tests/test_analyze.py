@@ -140,3 +140,37 @@ def test_shortlist_does_not_swallow_an_unrelated_database_error(tmp_path):
                            side_effect=sqlite3.OperationalError("database is locked")):
         with pytest.raises(sqlite3.OperationalError, match="locked"):
             analyze.collect_shortlist(conn)
+
+
+def test_patterns_reports_grade_rates_per_bucket(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A", company="Acme")
+    _scored(conn, url="https://x/2", grade="C", company="Acme")
+    _scored(conn, url="https://x/3", grade="A", company="Beta")
+    out = analyze.collect_patterns(conn, by="company")
+    buckets = {b["key"]: b for b in out["buckets"]}
+    assert buckets["Acme"]["n"] == 2 and buckets["Acme"]["a"] == 1
+    assert buckets["Acme"]["a_rate"] == 0.5
+    assert buckets["Beta"]["a_rate"] == 1.0
+    assert out["total"] == 3
+
+
+def test_patterns_orders_by_a_rate_then_volume(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A", company="Best")
+    _scored(conn, url="https://x/2", grade="C", company="Worst")
+    _scored(conn, url="https://x/3", grade="C", company="Worst")
+    out = analyze.collect_patterns(conn, by="company")
+    assert out["buckets"][0]["key"] == "Best"
+
+
+def test_patterns_rejects_an_unknown_dimension(tmp_path):
+    conn = _conn(tmp_path)
+    with pytest.raises(ValueError):
+        analyze.collect_patterns(conn, by="favourite_colour")
+
+
+def test_patterns_handles_an_empty_corpus(tmp_path):
+    conn = _conn(tmp_path)
+    out = analyze.collect_patterns(conn, by="archetype")
+    assert out["total"] == 0 and out["buckets"] == []
