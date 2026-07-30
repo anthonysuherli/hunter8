@@ -77,6 +77,13 @@ def collect_shortlist(conn: sqlite3.Connection, *, since_days: int | None = None
             raise
         unavailable = True
 
+    if wanted:
+        # A movement not ending in a wanted grade doesn't belong beside a list
+        # that was just filtered to those grades — otherwise `--grade A` can
+        # report a B/C job moving, naming a job absent from the list next to it.
+        movements = [m for m in movements
+                    if (m["to_grade"] or "").upper() in wanted]
+
     return {
         "count": len(out),
         "window_days": since_days,
@@ -305,6 +312,11 @@ def collect_coverage(conn: sqlite3.Connection, *, watchlist_path: Path,
 
 
 def _render_coverage(p: dict) -> str:
+    if not p["total_companies"]:
+        # An empty watchlist has zero silent and zero stale boards too, which
+        # would otherwise fall through to the all-clear line below and read as
+        # "everything is fine" when nothing is even being watched.
+        return "No companies in the watchlist — nothing to report on."
     lines = [f"{p['total_companies']} watched company(ies): "
              f"{p['silent']} silent, {p['stale']} stale "
              f"(nothing newer than {p['stale_days']} days)."]

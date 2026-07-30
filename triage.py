@@ -50,27 +50,36 @@ def approve_ids(conn: sqlite3.Connection, ids: list, tracker_path: Path) -> list
     Routes through apply_decision, so the interactive and non-interactive paths
     cannot diverge in what they write. Per-id results rather than one boolean:
     the tracker is an .xlsx the user may have open, so a partial write is a real
-    outcome that must be visible rather than inferred."""
+    outcome that must be visible rather than inferred.
+
+    Looks up each id with a targeted single-row query rather than re-scanning
+    the whole `scored` list (432 rows at ~6k characters of raw_text each — a
+    full scan per id materialises tens of megabytes approving 25 jobs). The
+    fresh per-id read is still load-bearing, not just an artifact of the old
+    scan: if the same id appears twice in one call, the first iteration flips
+    it to `approved`, and the second iteration's query must see that write so
+    it routes to the "already approved" branch instead of appending a
+    duplicate tracker row."""
     results = []
     for job_id in ids:
-        rows = dbmod.jobs_by_status(conn, "scored")
-        job = next((j for j in rows if j.id == job_id), None)
-        if job is None:
-            current = conn.execute("SELECT status FROM jobs WHERE id=?",
-                                   (job_id,)).fetchone()
-            if current is None:
-                detail = f"no job with id {job_id}"
-            elif current[0] == "approved":
+        row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if row is None:
+            results.append({"id": job_id, "ok": False,
+                            "detail": f"no job with id {job_id}"})
+            continue
+        if row["status"] != "scored":
+            if row["status"] == "approved":
                 detail = f"already approved (id {job_id})"
             else:
-                detail = f"id {job_id} is {current[0]}, not scored"
+                detail = f"id {job_id} is {row['status']}, not scored"
             results.append({"id": job_id, "ok": False, "detail": detail})
             continue
+        job = dbmod._row_to_job(row)
         try:
             apply_decision(conn, job, "a", tracker_path)
         except Exception as exc:  # noqa: BLE001 — surfaced per id, never silent
             results.append({"id": job_id, "ok": False,
-                            "detail": f"tracker write failed: {exc}"})
+                            "detail": f"approve failed: {exc}"})
             continue
         results.append({"id": job_id, "ok": True,
                         "detail": f"{job.company} — {job.title}"})
@@ -102,6 +111,9 @@ def main(db_path: Path | None, approve: str | None, tracker_path: Path) -> None:
         except ValueError:
             raise SystemExit(f"--approve takes comma-separated integers, got "
                              f"{approve!r}")
+        if not ids:
+            click.echo("no ids given, nothing approved")
+            return
         for r in approve_ids(conn, ids, tracker_path):
             mark = "✓" if r["ok"] else "✗"
             click.echo(f"  {mark} {r['detail']}")

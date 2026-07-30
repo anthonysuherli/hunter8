@@ -452,3 +452,36 @@ companies:
 """)
     out = analyze.collect_coverage(conn, watchlist_path=wl)
     assert out["entries"][0]["name"] == "Ghost"
+
+
+def test_coverage_renders_an_explicit_message_for_an_empty_watchlist(tmp_path):
+    """0 silent + 0 stale used to fall through to the all-clear line even when
+    total_companies is also 0 — an empty watchlist reading as good news."""
+    conn = _conn(tmp_path)
+    wl = _watchlist(tmp_path, "companies: []\n")
+    out = analyze.collect_coverage(conn, watchlist_path=wl)
+    assert out["total_companies"] == 0
+
+    rendered = analyze._render_coverage(out)
+    assert "producing fresh rows" not in rendered
+    assert "No companies" in rendered
+
+
+def test_shortlist_grade_filter_also_filters_movements(tmp_path):
+    """collect_shortlist filtered the job list to --grade A but left
+    grade_movements unfiltered, so the movements section could name a B/C job
+    absent from the list beside it."""
+    conn = _conn(tmp_path)
+    job_b = _scored(conn, url="https://x/b-move", grade="C", brief_sha="old1")
+    dbmod.set_score(conn, job_b, status="scored", grade="B", reasoning="why",
+                    archetype="lab", comp_signal="", red_flags="[]",
+                    brief_sha="new1")
+    job_a = _scored(conn, url="https://x/a-move", grade="C", brief_sha="old2")
+    dbmod.set_score(conn, job_a, status="scored", grade="A", reasoning="why",
+                    archetype="lab", comp_signal="", red_flags="[]",
+                    brief_sha="new2")
+
+    out = analyze.collect_shortlist(conn, grades=["A"])
+
+    to_grades = {m["to_grade"] for m in out["movements"]}
+    assert to_grades == {"A"}

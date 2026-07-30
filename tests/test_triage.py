@@ -1,5 +1,6 @@
 # tests/test_triage.py
 import openpyxl
+from click.testing import CliRunner
 
 import db as dbmod
 import triage
@@ -153,11 +154,11 @@ def test_a_failed_tracker_write_is_reported_and_does_not_stop_the_rest(monkeypat
     assert len(results) == 2
     assert results[0]["id"] == first_id
     assert results[0]["ok"] is False
-    assert "tracker write failed" in results[0]["detail"]
+    assert "approve failed" in results[0]["detail"]
 
     assert results[1]["id"] == second_id
     assert results[1]["ok"] is False
-    assert "tracker write failed" in results[1]["detail"]
+    assert "approve failed" in results[1]["detail"]
 
     # No jobs should have moved to approved
     assert len(dbmod.jobs_by_status(conn, "approved")) == 0
@@ -198,7 +199,7 @@ def test_one_failing_id_does_not_block_a_later_good_one(monkeypatch, tmp_path):
     assert len(results) == 2
     assert results[0]["id"] == first_id
     assert results[0]["ok"] is False
-    assert "tracker write failed" in results[0]["detail"]
+    assert "approve failed" in results[0]["detail"]
 
     assert results[1]["id"] == second_id
     assert results[1]["ok"] is True
@@ -213,3 +214,40 @@ def test_one_failing_id_does_not_block_a_later_good_one(monkeypatch, tmp_path):
     wb = openpyxl.load_workbook(tracker)
     ws = wb["Apply Tracker"]
     assert ws.max_row == 2
+
+
+def test_approve_ids_handles_a_duplicate_id_in_one_call(tmp_path):
+    """approve_ids now looks up each id with a targeted single-row query
+    instead of re-scanning the whole scored list — but the fresh per-id read
+    is still load-bearing: the same id twice in one call must approve once and
+    report the repeat as already-approved, not append a second tracker row."""
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _scored_job(conn)
+    job = dbmod.jobs_by_status(conn, "scored")[0]
+
+    results = triage.approve_ids(conn, [job.id, job.id], tracker)
+
+    assert results[0]["ok"] is True
+    assert results[1]["ok"] is False
+    assert "already approved" in results[1]["detail"]
+    wb = openpyxl.load_workbook(tracker)
+    assert wb["Apply Tracker"].max_row == 2   # header + exactly one row
+
+
+def test_cli_approve_with_empty_string_prints_an_explicit_message(tmp_path):
+    """--approve '' used to exit 0 with no output — indistinguishable in a
+    transcript from a successful approval."""
+    tracker = _tracker(tmp_path)
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    conn.close()
+
+    result = CliRunner().invoke(
+        triage.main,
+        ["--db", str(tmp_path / "h.db"), "--tracker", str(tracker),
+         "--approve", ""])
+
+    assert result.exit_code == 0
+    assert "nothing approved" in result.output
