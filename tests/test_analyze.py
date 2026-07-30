@@ -1,7 +1,10 @@
 # tests/test_analyze.py
 import json
+import sqlite3
 from datetime import datetime, timezone
+from unittest import mock
 
+import pytest
 from click.testing import CliRunner
 
 import analyze
@@ -126,3 +129,14 @@ def test_shortlist_degrades_when_grade_history_is_absent(tmp_path):
     out = analyze.collect_shortlist(conn)
     assert out["movements"] == []
     assert out["movements_unavailable"] is True
+
+
+def test_shortlist_does_not_swallow_an_unrelated_database_error(tmp_path):
+    """Only a missing grade_history table may degrade quietly. A locked database
+    reported as 'no history yet' would send the reader to fix the wrong thing."""
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A")
+    with mock.patch.object(dbmod, "grade_movements",
+                           side_effect=sqlite3.OperationalError("database is locked")):
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            analyze.collect_shortlist(conn)

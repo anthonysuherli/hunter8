@@ -63,8 +63,14 @@ def collect_shortlist(conn: sqlite3.Connection, *, since_days: int | None = None
     unavailable = False
     try:
         movements = dbmod.grade_movements(conn, since=new_since)
-    except sqlite3.OperationalError:
-        unavailable = True   # database predates grade_history
+    except sqlite3.OperationalError as exc:
+        # Only a database predating grade_history may degrade quietly. A locked
+        # file, or an SQLite too old for the query's window functions, must
+        # surface as itself — reporting either as "no history yet" sends the
+        # reader to fix the wrong thing.
+        if "no such table" not in str(exc).lower():
+            raise
+        unavailable = True
 
     return {
         "count": len(out),
