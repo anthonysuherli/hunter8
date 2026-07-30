@@ -184,15 +184,22 @@ def collect_health(conn: sqlite3.Connection, *, threshold_in_effect: int,
                    calibration_path: Path, intent_path: Path) -> dict:
     """Pipeline and calibration state: what is queued, what is misconfigured,
     what failed and why, and what it has cost."""
-    queue = {s: len(dbmod.jobs_by_status(conn, s)) for s in _QUEUE_STATUSES}
+    counts = dict(conn.execute(
+        "SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
+    queue = {s: int(counts.get(s, 0)) for s in _QUEUE_STATUSES}
 
-    errors = [
-        {"id": r[0], "company": r[1], "title": r[2], "status": r[3],
-         "reason": r[4] or r[5] or ""}
-        for r in conn.execute(
+    errors = []
+    for r in conn.execute(
             """SELECT id, company, title, status, screen_reason, reasoning
                FROM jobs WHERE status IN ('screen_error','score_error')
-               ORDER BY id""").fetchall()]
+               ORDER BY id""").fetchall():
+        job_id, company, title, status, screen_reason, reasoning = r
+        # Pick the column belonging to the stage that actually failed. A job only
+        # reaches score_error by passing screening first, so it carries a stale
+        # screen_reason that would otherwise shadow the real failure.
+        reason = reasoning if status == "score_error" else screen_reason
+        errors.append({"id": job_id, "company": company, "title": title,
+                       "status": status, "reason": reason or ""})
 
     pairs = [(str(g).upper(), int(f)) for g, f in conn.execute(
         """SELECT grade, fit_score FROM jobs

@@ -339,3 +339,37 @@ def test_health_reports_agreement_normally_at_a_sampled_threshold(tmp_path):
                                  intent_path=tmp_path / "none.md")
     assert out["agreement"]["threshold_was_sampled"] is True
     assert "A-recall" in analyze._render_health(out)
+
+
+def test_health_shows_the_score_failure_not_the_stale_screen_reason(tmp_path):
+    """A job only reaches score_error by passing screening first, so it keeps a
+    screen_reason from that pass. Picking the reason by truthiness surfaced the
+    old screening rationale instead of what actually went wrong."""
+    conn = _conn(tmp_path)
+    dbmod.insert_job(conn, Job(url="https://x/e", company="Acme", title="T",
+                               location="NYC", source="ats:greenhouse",
+                               ats="greenhouse", raw_text="d"))
+    job = dbmod.jobs_by_status(conn, "discovered")[0]
+    dbmod.set_screen(conn, job.id, status="screened_in", fit_score=80,
+                     screen_reason="strong match on agentic AI")
+    dbmod.set_score(conn, job.id, status="score_error", grade=None,
+                    reasoning="claude returned non-JSON", archetype=None,
+                    comp_signal=None, red_flags=None)
+
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "n.md",
+                                 intent_path=tmp_path / "i.md")
+
+    assert len(out["errors"]) == 1
+    assert out["errors"][0]["reason"] == "claude returned non-JSON"
+
+
+def test_health_queue_reports_every_status_including_empty_ones(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A")
+    out = analyze.collect_health(conn, threshold_in_effect=65,
+                                 calibration_path=tmp_path / "n.md",
+                                 intent_path=tmp_path / "i.md")
+    assert out["queue"]["scored"] == 1
+    assert out["queue"]["approved"] == 0          # present, not missing
+    assert set(out["queue"]) == set(analyze._QUEUE_STATUSES)
