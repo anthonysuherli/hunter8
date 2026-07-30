@@ -76,7 +76,8 @@ def _agent(payload):
     return _A()
 
 
-def test_grade_profile_writes_brief_with_its_own_title(tmp_path):
+def test_grade_profile_writes_brief_with_its_own_title(tmp_path, monkeypatch):
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "work authorization")
     intent = tmp_path / "intent.md"
     intent.write_text("full profile; work authorization details here")
     out = tmp_path / "brief.md"
@@ -87,9 +88,10 @@ def test_grade_profile_writes_brief_with_its_own_title(tmp_path):
     assert "RAGAS harness" in text and out.exists()
 
 
-def test_grade_profile_refuses_a_brief_that_lost_the_sponsorship_rule(tmp_path):
+def test_grade_profile_refuses_a_brief_that_lost_the_sponsorship_rule(tmp_path, monkeypatch):
     """Losing this once invalidated every grade in the corpus. Fail, don't write."""
     import pytest
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "work authorization")
     intent = tmp_path / "intent.md"
     intent.write_text("full profile")
     out = tmp_path / "brief.md"
@@ -100,7 +102,8 @@ def test_grade_profile_refuses_a_brief_that_lost_the_sponsorship_rule(tmp_path):
     assert not out.exists()   # nothing half-written to be silently reused
 
 
-def test_grade_profile_uses_the_grading_system_prompt(tmp_path):
+def test_grade_profile_uses_the_grading_system_prompt(tmp_path, monkeypatch):
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "work authorization")
     intent = tmp_path / "intent.md"
     intent.write_text("profile")
     agent = _agent({"brief": "Work authorization rules kept. Evidence: agents."})
@@ -108,6 +111,20 @@ def test_grade_profile_uses_the_grading_system_prompt(tmp_path):
                          profile=rubric.GRADE)
     assert "grading brief" in agent.systems[0]
     assert "VERBATIM" in agent.systems[0]
+
+
+def test_required_terms_are_read_when_used_not_when_imported(monkeypatch):
+    """The guard used to capture HUNTER8_BRIEF_REQUIRED at import, before
+    load_dotenv() ran, so the configured terms were never enforced. Changing the
+    variable after import must change what is enforced."""
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "alpha,beta")
+    assert rubric.GRADE.required_terms() == ("alpha", "beta")
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "gamma")
+    assert rubric.GRADE.required_terms() == ("gamma",)
+
+
+def test_screen_profile_requires_nothing():
+    assert rubric.SCREEN.required_terms() == ()
 
 
 def test_screen_profile_is_still_the_default(tmp_path):
@@ -119,7 +136,8 @@ def test_screen_profile_is_still_the_default(tmp_path):
     assert "screening rubric" in agent.systems[0]
 
 
-def test_brief_is_cached_on_the_intent_hash(tmp_path):
+def test_brief_is_cached_on_the_intent_hash(tmp_path, monkeypatch):
+    monkeypatch.setenv("HUNTER8_BRIEF_REQUIRED", "work authorization")
     intent = tmp_path / "intent.md"
     intent.write_text("profile")
     out = tmp_path / "brief.md"

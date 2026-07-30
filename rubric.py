@@ -54,28 +54,32 @@ _GRADE_SYSTEM = (
 @dataclass(frozen=True)
 class Profile:
     """One distillation target: which key the reply carries, what to title the
-    file, the system prompt, and terms whose absence means the distillation
-    dropped a hard constraint."""
+    file, the system prompt, and the env var naming the terms whose absence
+    means the distillation dropped a hard constraint."""
     key: str
     title: str
     system: str
-    required: tuple[str, ...] = ()
+    required_env: str | None = None
 
+    def required_terms(self) -> tuple:
+        """Terms the distilled document must still contain, resolved now rather
+        than at import.
 
-def _required_terms() -> tuple[str, ...]:
-    """Terms the grading brief must still contain after distillation.
-
-    Losing a hard constraint once invalidated every grade in the corpus, so its
-    survival is asserted rather than hoped for. The specific terms live in .env
-    because they describe the candidate — this repo is public, and a default of
-    "work authorization" checks the section survived without publishing which
-    status it is."""
-    raw = os.getenv("HUNTER8_BRIEF_REQUIRED", "work authorization")
-    return tuple(t.strip() for t in raw.split(",") if t.strip())
+        Read at import time this captured the default before load_dotenv() had
+        run, so the configured terms were never actually enforced — and which
+        terms applied depended on module import order. The specific terms live
+        in .env because they describe the candidate; this repo is public, and a
+        default of "work authorization" checks the section survived without
+        publishing which status it is."""
+        if self.required_env is None:
+            return ()
+        raw = os.getenv(self.required_env, "work authorization")
+        return tuple(t.strip() for t in raw.split(",") if t.strip())
 
 
 SCREEN = Profile("rubric", "Screening Rubric", _SYSTEM)
-GRADE = Profile("brief", "Grading Brief", _GRADE_SYSTEM, required=_required_terms())
+GRADE = Profile("brief", "Grading Brief", _GRADE_SYSTEM,
+                required_env="HUNTER8_BRIEF_REQUIRED")
 
 
 def _hash(text: str) -> str:
@@ -128,7 +132,7 @@ def load_or_build(intent_path: Path, rubric_path: Path, agent,
     if not body:
         raise SystemExit(f"{profile.title} distillation returned nothing. Re-run, "
                          f"or write {rubric_path} by hand.")
-    missing = [t for t in profile.required if t.lower() not in body.lower()]
+    missing = [t for t in profile.required_terms() if t.lower() not in body.lower()]
     if missing:
         # Silently grading against a brief that lost a hard constraint is the
         # failure mode that already invalidated one whole corpus. Refuse instead.
