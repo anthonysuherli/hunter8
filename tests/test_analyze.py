@@ -1,7 +1,7 @@
 # tests/test_analyze.py
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import pytest
@@ -373,3 +373,61 @@ def test_health_queue_reports_every_status_including_empty_ones(tmp_path):
     assert out["queue"]["scored"] == 1
     assert out["queue"]["approved"] == 0          # present, not missing
     assert set(out["queue"]) == set(analyze._QUEUE_STATUSES)
+
+
+def _watchlist(tmp_path, body):
+    p = tmp_path / "watchlist.yaml"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+def test_coverage_flags_a_company_with_no_rows(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A", company="Acme")
+    wl = _watchlist(tmp_path, """
+companies:
+  - name: Acme
+    ats: greenhouse
+    board: acme
+  - name: Ghost
+    ats: greenhouse
+    board: ghost
+""")
+    out = analyze.collect_coverage(conn, watchlist_path=wl)
+    by_name = {e["name"]: e for e in out["entries"]}
+    assert by_name["Acme"]["rows"] == 1 and by_name["Acme"]["is_silent"] is False
+    assert by_name["Ghost"]["rows"] == 0 and by_name["Ghost"]["is_silent"] is True
+    assert out["silent"] == 1
+    assert out["total_companies"] == 2
+
+
+def test_coverage_flags_a_company_whose_newest_posting_is_old(tmp_path):
+    conn = _conn(tmp_path)
+    old = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+    _scored(conn, url="https://x/old", grade="B", company="Stale",
+            posted_at=old)
+    wl = _watchlist(tmp_path, """
+companies:
+  - name: Stale
+    ats: lever
+    board: stale
+""")
+    out = analyze.collect_coverage(conn, watchlist_path=wl, stale_days=30)
+    assert out["entries"][0]["is_stale"] is True
+    assert out["stale"] == 1
+
+
+def test_coverage_orders_silent_companies_first(tmp_path):
+    conn = _conn(tmp_path)
+    _scored(conn, url="https://x/1", grade="A", company="Loud")
+    wl = _watchlist(tmp_path, """
+companies:
+  - name: Loud
+    ats: greenhouse
+    board: loud
+  - name: Ghost
+    ats: greenhouse
+    board: ghost
+""")
+    out = analyze.collect_coverage(conn, watchlist_path=wl)
+    assert out["entries"][0]["name"] == "Ghost"

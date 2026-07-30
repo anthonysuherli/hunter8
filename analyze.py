@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 import calibrate
 import db as dbmod
 import screen as screenmod
+from watchlist import load_watchlist
 
 load_dotenv()
 
@@ -264,6 +265,56 @@ def _render_health(p: dict) -> str:
     return "\n".join(lines)
 
 
+def collect_coverage(conn: sqlite3.Connection, *, watchlist_path: Path,
+                     stale_days: int = 30) -> dict:
+    """Per watched company: how many rows it has produced and how fresh they are.
+
+    A configured board returning nothing is indistinguishable from a firm that
+    is not hiring, until you look — which is how the funds and banks stayed
+    invisible for a week. Read through load_watchlist so an unsupported ATS
+    still raises in one place."""
+    wl = load_watchlist(watchlist_path)
+    horizon = cutoff(stale_days)
+    entries = []
+    for c in wl.companies:
+        row = conn.execute(
+            """SELECT COUNT(*), SUM(status='scored'),
+                      MAX(COALESCE(NULLIF(posted_at,''), discovered_at))
+               FROM jobs WHERE company=?""", (c.name,)).fetchone()
+        rows, scored, newest = int(row[0]), int(row[1] or 0), row[2]
+        entries.append({
+            "name": c.name, "ats": c.ats, "board": c.board,
+            "archetype": c.archetype, "rows": rows, "scored": scored,
+            "newest_posted_at": newest,
+            "is_silent": rows == 0,
+            "is_stale": bool(rows and newest and horizon and newest < horizon),
+        })
+    entries.sort(key=lambda e: (not e["is_silent"], not e["is_stale"],
+                                e["rows"], e["name"]))
+    return {
+        "total_companies": len(entries),
+        "silent": sum(1 for e in entries if e["is_silent"]),
+        "stale": sum(1 for e in entries if e["is_stale"]),
+        "stale_days": stale_days,
+        "entries": entries,
+    }
+
+
+def _render_coverage(p: dict) -> str:
+    lines = [f"{p['total_companies']} watched company(ies): "
+             f"{p['silent']} silent, {p['stale']} stale "
+             f"(nothing newer than {p['stale_days']} days)."]
+    for e in p["entries"]:
+        if e["is_silent"]:
+            lines.append(f"  SILENT  {e['name']} ({e['ats']}/{e['board']})")
+        elif e["is_stale"]:
+            lines.append(f"  STALE   {e['name']} — newest "
+                         f"{(e['newest_posted_at'] or '')[:10]}")
+    if p["silent"] == 0 and p["stale"] == 0:
+        lines.append("  every watched board is producing fresh rows.")
+    return "\n".join(lines)
+
+
 _db_option = click.option("--db", "db_path", default=None,
                           envvar="HUNTER8_DB_PATH", type=Path)
 _json_option = click.option("--json", "as_json", is_flag=True,
@@ -326,6 +377,21 @@ def health(db_path: Path | None, threshold: int | None, calibration_path: Path,
                              else screenmod.DEFAULT_THRESHOLD),
         calibration_path=calibration_path, intent_path=intent_path),
         as_json, _render_health)
+
+
+@main.command()
+@_db_option
+@click.option("--watchlist", "watchlist_path", default="watchlist.yaml",
+              type=click.Path(exists=True, path_type=Path))
+@click.option("--stale-days", default=30, type=int,
+              help="A board with nothing newer than this is stale.")
+@_json_option
+def coverage(db_path: Path | None, watchlist_path: Path, stale_days: int,
+             as_json: bool) -> None:
+    """Which watched boards produce nothing, and which have gone quiet."""
+    conn = dbmod.connect(db_path or Path(dbmod.DEFAULT_DB))
+    _emit(collect_coverage(conn, watchlist_path=watchlist_path,
+                           stale_days=stale_days), as_json, _render_coverage)
 
 
 if __name__ == "__main__":
