@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hunter8",
+  "description": "The hunter8 job-search pipeline's own plugin, served from this repo so the commands stay in step with the CLIs they drive.",
+  "owner": {
+    "name": "Anthony Suherli"
+  },
+  "plugins": [
+    {
+      "name": "hunter8",
+      "source": "./plugin",
+      "description": "Drive and analyse the hunter8 job-search pipeline: graded shortlists, corpus patterns, pipeline health, and a chat-based approval gate."
+    }
+  ]
+}
