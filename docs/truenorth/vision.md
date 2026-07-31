@@ -30,10 +30,20 @@ carries the matches you approve through to a submitted application.
    and cheap enough to run every morning, and a day's matches can be cleared in
    a few minutes.
 
+5. **Prove the transferable product thesis without productizing the personal
+   runtime.** Extract a provider-neutral discovery and evidence-ranking core
+   from hunter8, then use it in a separate invite-only companion at
+   `hunter8.delapan.ai`. An invitee signs in, uploads a résumé, chooses
+   companies, confirms the generated profile, and receives an evidence-ranked
+   shortlist. The companion may later move to its own domain; hunter8's
+   personal data and runtime never move with it.
+
 ## Non-Goals
 
-- **Not a product for anyone else.** One user, one machine. No auth, no
-  multi-tenancy, no hosting, no onboarding flow.
+- **The hunter8 runtime is not multi-user software.** Its database, profile,
+  tracker, résumés, and application runtime remain personal and local. Any
+  public POC is a separate companion application with separate storage,
+  configuration, and deployment.
 - **Not an auto-apply bot.** Volume is not the objective. A pipeline that fires
   off 200 applications is a failure, not a success.
 - **Not a general job board or aggregator.** It watches a curated list of
@@ -60,6 +70,15 @@ carries the matches you approve through to a submitted application.
 - **Job and profile data goes only to explicitly configured providers.** No
   telemetry, no analytics, no third-party calls the config doesn't name.
 - **The hand-authored block in `intent.md` survives every KB resync.**
+- **Hosted-companion data is private by default.** An invitee's résumé,
+  generated profile, shortlist, and derived data are isolated from hunter8's
+  personal artifacts, go only to explicitly configured providers, and can be
+  permanently deleted in one action.
+- **LinkedIn authentication is identity, not résumé access.** LinkedIn sign-in
+  may prefill basic identity fields only. The companion never scrapes LinkedIn
+  or assumes OAuth exposes work history. A user-provided résumé is the source
+  for KB bootstrap, and the user confirms or edits the generated profile before
+  ranking begins.
 
 ## Acceptance Criteria
 
@@ -86,6 +105,15 @@ carries the matches you approve through to a submitted application.
   from 100% to 71%. Keep the noise. A wrongly promoted job costs one ~$0.008
   Claude call and is caught; a wrongly rejected A-grade is lost silently and
   forever. Do not re-attempt this without a way to measure both directions.
+- The separate companion is deployed at `hunter8.delapan.ai` with invite-only
+  access through email or LinkedIn sign-in.
+- Five invitees complete résumé upload, profile confirmation, and company
+  selection; each marks at least three shortlist results useful.
+- Deleting an account removes its uploaded résumé, generated profile,
+  shortlist, and derived data.
+- The POC does not submit applications or contact employers.
+- The extracted core remains usable by local hunter8 without hosted-product
+  dependencies.
 
 ## Planned Detours
 
@@ -94,6 +122,15 @@ carries the matches you approve through to a submitted application.
 2. **Rules-filter audit.** Sample the 2,605 `filtered_out` rows, measure false
    negatives, then loosen or fix the regexes. 89% is a lot of silent rejection
    to leave unvalidated. After this detour, return to End Goal 3.
+3. **Hosted-companion extraction.** Define provider-neutral contracts for
+   résumé-to-profile parsing, company-watchlist discovery, evidence ranking,
+   and result explanation. Keep personal storage, tracker integration, and
+   application automation outside those contracts. After this detour, return
+   to End Goal 5.
+4. **Temporary delapan.ai deployment.** Ship the separate invite-only companion
+   at `hunter8.delapan.ai`, validate it with five testers, then decide whether
+   evidence supports moving it to a dedicated domain. After this detour, return
+   to End Goal 5.
 
 ## Amendment Log
 
@@ -102,3 +139,8 @@ carries the matches you approve through to a submitted application.
   triaged) and the decision to make scoring tiered (local model for bulk,
   Claude for finalists) rather than fully offline or fully cloud. — Ratified
   by: Anthony Suherli, session 816515c9
+- 2026-07-31 — Added a separate invite-only hosted companion to prove the
+  transferable product thesis while preserving hunter8 as a personal,
+  local-first runtime. Locked privacy, deletion, résumé-confirmation, LinkedIn
+  identity-only, shortlist-only, and five-tester acceptance boundaries. —
+  Ratified by: Anthony Suherli, current session
