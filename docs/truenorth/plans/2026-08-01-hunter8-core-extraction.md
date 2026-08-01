@@ -363,7 +363,7 @@ git commit -m "refactor: separate public job postings from workflow rows"
   local-only `fetch_tavily` return `list[JobPosting]`.
 - Preserves: function names and HTTP behavior.
 
-- [ ] **Step 1: Add failing type assertions to source tests**
+- [x] **Step 1: Add failing type assertions to source tests**
 
 Add:
 
@@ -386,7 +386,7 @@ For the Workday test, where the variable is `j`, add:
 assert isinstance(j, JobPosting)
 ```
 
-- [ ] **Step 2: Run parser tests and verify they fail**
+- [x] **Step 2: Run parser tests and verify they fail**
 
 Run:
 
@@ -396,7 +396,7 @@ Run:
 
 Expected: FAIL because parsers still return `db.Job`.
 
-- [ ] **Step 3: Change source imports, annotations, and constructors**
+- [x] **Step 3: Change source imports, annotations, and constructors**
 
 Replace:
 
@@ -535,13 +535,13 @@ out: list[JobPosting] = []
 def one(path: str) -> JobPosting | None:
 ```
 
-- [ ] **Step 4: Update description assertions**
+- [x] **Step 4: Update description assertions**
 
 Change parser-result assertions in `tests/test_sources.py` from `.raw_text` to
 `.description`. Do not change repair tests: they intentionally exercise local
 `db.Job` rows.
 
-- [ ] **Step 5: Run source tests**
+- [x] **Step 5: Run source tests**
 
 Run:
 
@@ -552,7 +552,7 @@ Run:
 Expected: PASS with the same parsed values, dates, paging, and malformed-row
 behavior.
 
-- [ ] **Step 6: Commit the source boundary**
+- [x] **Step 6: Commit the source boundary**
 
 ```bash
 git add sources.py tests/test_sources.py

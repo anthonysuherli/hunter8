@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from db import Job
+from hunter8_core import JobPosting
 
 # Workday and Eightfold sit behind bot management and reject the default httpx
 # user-agent; the three JSON boards do not care.
@@ -30,29 +30,30 @@ def _detag(html: str) -> str:
     return _WS.sub("\n\n", text).strip()
 
 
-def parse_greenhouse(payload: dict[str, Any], *, company: str) -> list[Job]:
-    out: list[Job] = []
+def parse_greenhouse(payload: dict[str, Any], *, company: str) -> list[JobPosting]:
+    out: list[JobPosting] = []
     for j in payload.get("jobs", []):
         loc = (j.get("location") or {}).get("name", "")
-        out.append(Job(
+        out.append(JobPosting(
             url=j["absolute_url"], company=company, title=j.get("title", ""),
             location=loc, source="ats:greenhouse", ats="greenhouse",
-            posted_at=j.get("updated_at"), raw_text=j.get("content", "") or "",
+            posted_at=j.get("updated_at"),
+            description=j.get("content", "") or "",
         ))
     return out
 
 
-def parse_ashby(payload: dict[str, Any], *, company: str) -> list[Job]:
-    out: list[Job] = []
+def parse_ashby(payload: dict[str, Any], *, company: str) -> list[JobPosting]:
+    out: list[JobPosting] = []
     for j in payload.get("jobs", []):
         loc = j.get("location")
         if isinstance(loc, dict):
             loc = loc.get("name", "")
-        out.append(Job(
+        out.append(JobPosting(
             url=j["jobUrl"], company=company, title=j.get("title", ""),
             location=loc or "", source="ats:ashby", ats="ashby",
             posted_at=j.get("publishedAt"),
-            raw_text=j.get("descriptionPlain", "") or "",
+            description=j.get("descriptionPlain", "") or "",
         ))
     return out
 
@@ -75,15 +76,15 @@ def _epoch_ms_to_iso(value) -> str | None:
         return None
 
 
-def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[Job]:
-    out: list[Job] = []
+def parse_lever(payload: list[dict[str, Any]], *, company: str) -> list[JobPosting]:
+    out: list[JobPosting] = []
     for j in payload:
         cats = j.get("categories") or {}
-        out.append(Job(
+        out.append(JobPosting(
             url=j["hostedUrl"], company=company, title=j.get("text", ""),
             location=cats.get("location", ""), source="ats:lever", ats="lever",
             posted_at=_epoch_ms_to_iso(j.get("createdAt")),
-            raw_text=j.get("descriptionPlain", "") or "",
+            description=j.get("descriptionPlain", "") or "",
         ))
     return out
 
@@ -112,7 +113,7 @@ def repair_lever_posted_at(conn) -> int:
 
 
 def parse_workday_detail(payload: dict[str, Any], *, company: str,
-                         url: str) -> Job | None:
+                         url: str) -> JobPosting | None:
     """One job from Workday's CxS detail endpoint.
 
     The list endpoint only carries a title, a location string and a *relative*
@@ -125,19 +126,19 @@ def parse_workday_detail(payload: dict[str, Any], *, company: str,
         return None
     start = info.get("startDate") or ""
     posted = f"{start}T00:00:00+00:00" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) else None
-    return Job(
+    return JobPosting(
         url=url, company=company, title=title,
         location=info.get("location", "") or "", source="ats:workday",
         ats="workday", posted_at=posted,
-        raw_text=_detag(info.get("jobDescription", "")),
+        description=_detag(info.get("jobDescription", "")),
     )
 
 
-def parse_eightfold(payload: dict[str, Any], *, company: str) -> list[Job]:
+def parse_eightfold(payload: dict[str, Any], *, company: str) -> list[JobPosting]:
     """Eightfold's list endpoint. `job_description` comes back empty here and
     there is no public detail endpoint, so these rows carry title, location and
     department only — enough to screen and click through, not to grade deeply."""
-    out: list[Job] = []
+    out: list[JobPosting] = []
     for p in payload.get("positions", []):
         pid = p.get("id")
         url = p.get("canonicalPositionUrl") or (pid and f"eightfold:{pid}")
@@ -148,11 +149,11 @@ def parse_eightfold(payload: dict[str, Any], *, company: str) -> list[Job]:
                   if created else None)
         bits = [p.get("name", ""), p.get("department", ""),
                 p.get("business_unit", ""), p.get("job_description", "")]
-        out.append(Job(
+        out.append(JobPosting(
             url=url, company=company, title=p.get("name", ""),
             location=p.get("location", "") or "", source="ats:eightfold",
             ats="eightfold", posted_at=posted,
-            raw_text="\n".join(b for b in bits if b),
+            description="\n".join(b for b in bits if b),
         ))
     return out
 
@@ -176,7 +177,7 @@ _EF_PAGE = 10
 
 
 def fetch_workday(*, board: str, company: str, timeout: float = 20.0,
-                  max_jobs: int = WORKDAY_MAX_JOBS) -> list[Job]:
+                  max_jobs: int = WORKDAY_MAX_JOBS) -> list[JobPosting]:
     """`board` is "tenant/server/site", e.g. "ms/wd5/External"."""
     try:
         tenant, server, site = board.split("/")
@@ -200,7 +201,7 @@ def fetch_workday(*, board: str, company: str, timeout: float = 20.0,
             offset += _WD_PAGE
         paths = paths[:max_jobs]
 
-        def one(path: str) -> Job | None:
+        def one(path: str) -> JobPosting | None:
             try:
                 r = client.get(f"{base}{path}")
                 r.raise_for_status()
@@ -214,14 +215,14 @@ def fetch_workday(*, board: str, company: str, timeout: float = 20.0,
 
 
 def fetch_eightfold(*, board: str, company: str, timeout: float = 20.0,
-                    max_jobs: int = 500) -> list[Job]:
+                    max_jobs: int = 500) -> list[JobPosting]:
     """`board` is "subdomain/domain", e.g. "mlp/mlp.com"."""
     try:
         sub, domain = board.split("/")
     except ValueError:
         raise ValueError(f"eightfold board must be sub/domain, got {board!r}")
     url = f"https://{sub}.eightfold.ai/api/apply/v2/jobs"
-    out: list[Job] = []
+    out: list[JobPosting] = []
     with httpx.Client(timeout=timeout, headers=_HEADERS) as client:
         start = 0
         while len(out) < max_jobs:
@@ -239,7 +240,7 @@ def fetch_eightfold(*, board: str, company: str, timeout: float = 20.0,
     return out[:max_jobs]
 
 
-def fetch_ats(ats: str, *, board: str, company: str, timeout: float = 20.0) -> list[Job]:
+def fetch_ats(ats: str, *, board: str, company: str, timeout: float = 20.0) -> list[JobPosting]:
     """Fetch + parse one company's board. Raises ValueError for unknown ATS;
     lets httpx errors propagate to the caller (discover.py handles per-company)."""
     if ats == "workday":
@@ -255,9 +256,10 @@ def fetch_ats(ats: str, *, board: str, company: str, timeout: float = 20.0) -> l
 
 
 def fetch_tavily(query: str, api_key: str, *, max_results: int = 5,
-                 timeout: float = 30.0) -> list[Job]:
-    """Tavily search → Job rows (source='tavily', ats=None). URL is the result
-    link; raw_text is the result content."""
+                 timeout: float = 30.0) -> list[JobPosting]:
+    """Tavily search → postings (source='tavily', ats=None). URL is the result
+    link; description is the result content. Local-only: Tavily is not a hosted
+    CompanySource."""
     resp = httpx.post(
         "https://api.tavily.com/search",
         json={"api_key": api_key, "query": query, "max_results": max_results,
@@ -265,11 +267,11 @@ def fetch_tavily(query: str, api_key: str, *, max_results: int = 5,
         timeout=timeout,
     )
     resp.raise_for_status()
-    out: list[Job] = []
+    out: list[JobPosting] = []
     for r in resp.json().get("results", []):
-        out.append(Job(
+        out.append(JobPosting(
             url=r["url"], company="(tavily)", title=r.get("title", "")[:200],
             location="", source="tavily", ats=None,
-            raw_text=r.get("content", "") or "",
+            description=r.get("content", "") or "",
         ))
     return out
