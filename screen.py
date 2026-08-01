@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import db as dbmod
 import rubric as rubricmod
 from claude_agent import ClaudeAgent
-from db import Job
+from hunter8_core import JobPosting, JsonModel, ScreenAssessment
 from local_agent import LocalAgent, LocalUnavailable
 
 load_dotenv()
@@ -47,16 +47,16 @@ def _cutoff(since_days: int | None) -> str | None:
     return (datetime.now(timezone.utc) - timedelta(days=since_days)).isoformat()
 
 
-def _prompt(job: Job, rubric_text: str) -> str:
+def _prompt(posting: JobPosting, rubric_text: str) -> str:
     return (
         f"# Rubric\n{rubric_text}\n\n"
-        f"# Job posting\nCompany: {job.company}\nTitle: {job.title}\n"
-        f"Location: {job.location}\n\n{job.raw_text[:6000]}"
+        f"# Job posting\nCompany: {posting.company}\nTitle: {posting.title}\n"
+        f"Location: {posting.location}\n\n{posting.description[:6000]}"
     )
 
 
-def run_screening(conn: sqlite3.Connection, *, rubric_text: str, agent,
-                  threshold: int, limit: int | None = None,
+def run_screening(conn: sqlite3.Connection, *, rubric_text: str,
+                  agent: JsonModel, threshold: int, limit: int | None = None,
                   posted_since: str | None = None) -> None:
     """Screen `discovered` jobs into screened_in / screened_out / screen_error.
 
@@ -66,9 +66,10 @@ def run_screening(conn: sqlite3.Connection, *, rubric_text: str, agent,
                                     order_by="discovered_at DESC", limit=limit,
                                     posted_since=posted_since):
         try:
-            data = agent.chat_json(_SYSTEM, _prompt(job, rubric_text))
-            score = int(data.get("fit_score", 0))
-            reason = str(data.get("reason", ""))
+            data = agent.chat_json(_SYSTEM, _prompt(job.to_posting(), rubric_text))
+            assessment = ScreenAssessment.from_payload(data)
+            score = assessment.fit_score
+            reason = assessment.reason
         except LocalUnavailable:
             raise  # fail-fast: every remaining job would fail identically
         except Exception as exc:  # noqa: BLE001 — visible, never a silent default

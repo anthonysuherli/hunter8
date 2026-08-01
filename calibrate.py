@@ -34,7 +34,7 @@ def collect(conn, *, rubric_text: str, agent) -> list:
         if not job.grade:
             continue
         data = agent.chat_json(screenmod._SYSTEM,
-                               screenmod._prompt(job, rubric_text))
+                               screenmod._prompt(job.to_posting(), rubric_text))
         rows.append((job.grade.upper(), int(data.get("fit_score", 0))))
     return rows
 

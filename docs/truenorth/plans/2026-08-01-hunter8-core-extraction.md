@@ -10,6 +10,14 @@
 
 **Tech Stack:** Python 3.11 typing/dataclasses, pytest 8.2, SQLite, httpx; no new runtime dependency.
 
+> **Deviation (2026-08-01, execution):** the project venv is Python 3.9.6, not
+> the 3.11 assumed above, and `@dataclass(slots=True)` requires 3.10+. Every
+> core dataclass therefore uses `@dataclass(frozen=True)` without `slots`.
+> Immutability — the only property the plan's tests assert — is unaffected;
+> `slots` is a memory and attribute-typo optimization. `slots=True` was the sole
+> 3.10+ construct in this plan, so nothing else changes. Restore it if the venv
+> is ever rebuilt on 3.10+.
+
 ## Global Constraints
 
 - Keep hunter8's personal database, profile artifacts, watchlist, tracker, résumé files, and application automation outside `hunter8_core`.
@@ -148,7 +156,7 @@ insert_job(conn: sqlite3.Connection, job: Job) -> bool  # compatibility wrapper
 - Produces: `JobPosting`, `SourceConfig`, `Job.to_posting()`, `insert_posting()`.
 - Preserves: `insert_job()` for existing local callers and tests.
 
-- [ ] **Step 1: Write failing core-model and mapping tests**
+- [x] **Step 1: Write failing core-model and mapping tests**
 
 ```python
 # tests/test_core_models.py
@@ -214,7 +222,7 @@ def test_insert_job_remains_a_compatibility_wrapper(tmp_path):
     assert dbmod.insert_job(conn, job) is False
 ```
 
-- [ ] **Step 2: Run the new tests and verify the boundary does not exist**
+- [x] **Step 2: Run the new tests and verify the boundary does not exist**
 
 Run:
 
@@ -224,7 +232,7 @@ Run:
 
 Expected: collection fails because `hunter8_core` does not exist.
 
-- [ ] **Step 3: Implement immutable core models**
+- [x] **Step 3: Implement immutable core models**
 
 ```python
 # hunter8_core/models.py
@@ -265,7 +273,7 @@ from hunter8_core.models import JobPosting, SourceConfig
 __all__ = ["JobPosting", "SourceConfig"]
 ```
 
-- [ ] **Step 4: Add explicit conversion and persistence methods**
+- [x] **Step 4: Add explicit conversion and persistence methods**
 
 Add the import:
 
@@ -323,7 +331,7 @@ def insert_job(conn: sqlite3.Connection, job: Job) -> bool:
     return insert_posting(conn, job.to_posting())
 ```
 
-- [ ] **Step 5: Run focused database tests**
+- [x] **Step 5: Run focused database tests**
 
 Run:
 
@@ -333,7 +341,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the domain boundary**
+- [x] **Step 6: Commit the domain boundary**
 
 ```bash
 git add hunter8_core/__init__.py hunter8_core/models.py \
@@ -355,7 +363,7 @@ git commit -m "refactor: separate public job postings from workflow rows"
   local-only `fetch_tavily` return `list[JobPosting]`.
 - Preserves: function names and HTTP behavior.
 
-- [ ] **Step 1: Add failing type assertions to source tests**
+- [x] **Step 1: Add failing type assertions to source tests**
 
 Add:
 
@@ -378,7 +386,7 @@ For the Workday test, where the variable is `j`, add:
 assert isinstance(j, JobPosting)
 ```
 
-- [ ] **Step 2: Run parser tests and verify they fail**
+- [x] **Step 2: Run parser tests and verify they fail**
 
 Run:
 
@@ -388,7 +396,7 @@ Run:
 
 Expected: FAIL because parsers still return `db.Job`.
 
-- [ ] **Step 3: Change source imports, annotations, and constructors**
+- [x] **Step 3: Change source imports, annotations, and constructors**
 
 Replace:
 
@@ -527,13 +535,13 @@ out: list[JobPosting] = []
 def one(path: str) -> JobPosting | None:
 ```
 
-- [ ] **Step 4: Update description assertions**
+- [x] **Step 4: Update description assertions**
 
 Change parser-result assertions in `tests/test_sources.py` from `.raw_text` to
 `.description`. Do not change repair tests: they intentionally exercise local
 `db.Job` rows.
 
-- [ ] **Step 5: Run source tests**
+- [x] **Step 5: Run source tests**
 
 Run:
 
@@ -544,7 +552,7 @@ Run:
 Expected: PASS with the same parsed values, dates, paging, and malformed-row
 behavior.
 
-- [ ] **Step 6: Commit the source boundary**
+- [x] **Step 6: Commit the source boundary**
 
 ```bash
 git add sources.py tests/test_sources.py
@@ -568,7 +576,7 @@ git commit -m "refactor: return core postings from job sources"
 - Preserves: stdlib-only immutable values; no parser, model, persistence, or
   hosted-service implementation.
 
-- [ ] **Step 1: Write failing domain-contract tests**
+- [x] **Step 1: Write failing domain-contract tests**
 
 ```python
 # tests/test_core_contracts.py
@@ -797,7 +805,7 @@ def test_adapter_protocol_exports_have_locked_method_names(
     assert callable(getattr(protocol, method_name))
 ```
 
-- [ ] **Step 2: Run the contract tests and verify the types are missing**
+- [x] **Step 2: Run the contract tests and verify the types are missing**
 
 Run:
 
@@ -807,7 +815,7 @@ Run:
 
 Expected: collection fails on the first missing domain export.
 
-- [ ] **Step 3: Add the remaining immutable domain values**
+- [x] **Step 3: Add the remaining immutable domain values**
 
 Add `from typing import Literal` beside the existing imports in
 `hunter8_core/models.py`, then append:
@@ -965,7 +973,7 @@ class RankedMatch:
             raise ValueError("rank must be at least 1")
 ```
 
-- [ ] **Step 4: Implement every provider-neutral adapter protocol**
+- [x] **Step 4: Implement every provider-neutral adapter protocol**
 
 ```python
 # hunter8_core/ports.py
@@ -1027,7 +1035,7 @@ class ShortlistRanker(Protocol):
         ...
 ```
 
-- [ ] **Step 5: Export the full contract**
+- [x] **Step 5: Export the full contract**
 
 Use explicit imports and `__all__` in `hunter8_core/__init__.py`:
 
@@ -1079,7 +1087,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 6: Run domain-contract tests**
+- [x] **Step 6: Run domain-contract tests**
 
 Run:
 
@@ -1089,7 +1097,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the complete core contract**
+- [x] **Step 7: Commit the complete core contract**
 
 ```bash
 git add hunter8_core/models.py hunter8_core/ports.py \
@@ -1114,7 +1122,7 @@ git commit -m "feat: define hosted companion domain contracts"
 - Consumes: `SourceConfig`, `JobPosting`, `insert_posting()`.
 - Preserves: `run_discovery()` callers by making `ats_source` optional.
 
-- [ ] **Step 1: Write failing source-port tests**
+- [x] **Step 1: Write failing source-port tests**
 
 ```python
 # tests/test_core_ports.py
@@ -1188,7 +1196,7 @@ def test_core_package_has_no_local_or_third_party_imports():
         assert not (imported & forbidden), (path, imported & forbidden)
 ```
 
-- [ ] **Step 2: Run tests and verify missing protocols/injection**
+- [x] **Step 2: Run tests and verify missing protocols/injection**
 
 Run:
 
@@ -1198,7 +1206,7 @@ Run:
 
 Expected: FAIL because `ats_source` injection is not implemented.
 
-- [ ] **Step 3: Adapt the local watchlist and source implementation**
+- [x] **Step 3: Adapt the local watchlist and source implementation**
 
 Add:
 
@@ -1231,7 +1239,7 @@ class ATSCompanySource:
 
 Import `SourceConfig` alongside `JobPosting`.
 
-- [ ] **Step 4: Inject the source into discovery**
+- [x] **Step 4: Inject the source into discovery**
 
 Add:
 
@@ -1266,7 +1274,7 @@ if dbmod.insert_posting(conn, job):
 
 Use `insert_posting` for Tavily results as well.
 
-- [ ] **Step 5: Simplify existing discovery tests to use injection**
+- [x] **Step 5: Simplify existing discovery tests to use injection**
 
 In `tests/test_discover.py`, import `JobPosting` instead of `db.Job`, define a
 small fake source with `fetch(config, *, timeout=20.0)`, and pass it through the
@@ -1280,7 +1288,7 @@ assert n2 == 0
 For the failure-isolation test, raise only when `config.company == "Bad"` and
 return a `JobPosting` for `"Good"`.
 
-- [ ] **Step 6: Run focused discovery and boundary tests**
+- [x] **Step 6: Run focused discovery and boundary tests**
 
 Run:
 
@@ -1291,7 +1299,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit source injection**
+- [x] **Step 7: Commit source injection**
 
 ```bash
 git add tests/test_core_ports.py sources.py watchlist.py discover.py \
@@ -1313,7 +1321,7 @@ git commit -m "refactor: inject provider-neutral posting sources"
   `GradeAssessment.from_payload()`.
 - Error contract: malformed data raises `ValueError` with the bad field named.
 
-- [ ] **Step 1: Write failing validation tests**
+- [x] **Step 1: Write failing validation tests**
 
 ```python
 # tests/test_core_assessment.py
@@ -1370,7 +1378,7 @@ def test_grade_assessment_rejects_string_red_flags():
         })
 ```
 
-- [ ] **Step 2: Run tests and verify the module is absent**
+- [x] **Step 2: Run tests and verify the module is absent**
 
 Run:
 
@@ -1380,7 +1388,7 @@ Run:
 
 Expected: collection fails because `hunter8_core.assessment` does not exist.
 
-- [ ] **Step 3: Implement strict payload parsing**
+- [x] **Step 3: Implement strict payload parsing**
 
 ```python
 # hunter8_core/assessment.py
@@ -1457,7 +1465,7 @@ from hunter8_core.assessment import GradeAssessment, ScreenAssessment
 __all__ += ["GradeAssessment", "ScreenAssessment"]
 ```
 
-- [ ] **Step 4: Run assessment tests**
+- [x] **Step 4: Run assessment tests**
 
 Run:
 
@@ -1467,7 +1475,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit validation contracts**
+- [x] **Step 5: Commit validation contracts**
 
 ```bash
 git add hunter8_core/assessment.py hunter8_core/__init__.py \
@@ -1491,7 +1499,7 @@ git commit -m "feat: validate provider-neutral assessment payloads"
 - Preserves: local status transitions, fail-fast unavailable-provider behavior,
   grade history, call cost, and queue ordering.
 
-- [ ] **Step 1: Add failing malformed-payload regression tests**
+- [x] **Step 1: Add failing malformed-payload regression tests**
 
 Add an optional raw payload to the screen fake:
 
@@ -1567,7 +1575,7 @@ def test_string_red_flags_are_not_split_into_characters(tmp_path):
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
 ```
 
-- [ ] **Step 2: Run regressions and verify permissive parsing fails them**
+- [x] **Step 2: Run regressions and verify permissive parsing fails them**
 
 Run:
 
@@ -1577,7 +1585,7 @@ Run:
 
 Expected: the new invalid-payload tests fail.
 
-- [ ] **Step 3: Refactor screen prompting and parsing**
+- [x] **Step 3: Refactor screen prompting and parsing**
 
 Use:
 
@@ -1621,7 +1629,7 @@ reason = assessment.reason
 
 Do not change the existing `LocalUnavailable` or per-item exception branches.
 
-- [ ] **Step 4: Refactor final grading to `GradeAssessment`**
+- [x] **Step 4: Refactor final grading to `GradeAssessment`**
 
 Remove `dataclass` and the local `Verdict`. Import:
 
@@ -1652,7 +1660,7 @@ v = grade_job(job.to_posting(), intent_md=intent_md, agent=agent)
 Keep `json.dumps(v.red_flags)`, cost recording, grade history, and
 `ClaudeUnavailable` behavior unchanged.
 
-- [ ] **Step 5: Update direct grade test input**
+- [x] **Step 5: Update direct grade test input**
 
 In `tests/test_score.py`, change the direct call in
 `test_grade_job_parses_verdict` to:
@@ -1665,7 +1673,7 @@ v = score.grade_job(
 )
 ```
 
-- [ ] **Step 6: Run screening and grading tests**
+- [x] **Step 6: Run screening and grading tests**
 
 Run:
 
@@ -1675,7 +1683,7 @@ Run:
 
 Expected: PASS, including the new visible-error cases.
 
-- [ ] **Step 7: Commit assessment integration**
+- [x] **Step 7: Commit assessment integration**
 
 ```bash
 git add screen.py score.py tests/test_screen.py tests/test_score.py
@@ -1695,7 +1703,7 @@ git commit -m "refactor: grade core postings through validated assessments"
 - Documents: what child plans may import from `hunter8_core`.
 - Enforces: stdlib-only core and no personal/local runtime imports.
 
-- [ ] **Step 1: Extend the boundary test to all package files**
+- [x] **Step 1: Extend the boundary test to all package files**
 
 Replace the single-level glob:
 
@@ -1717,7 +1725,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 2: Write the package boundary document**
+- [x] **Step 2: Write the package boundary document**
 
 ```markdown
 <!-- hunter8_core/README.md -->
@@ -1746,7 +1754,7 @@ Provider-neutral contracts shared by local hunter8 and the hosted companion.
 application edge.
 ```
 
-- [ ] **Step 3: Add a concise root README section**
+- [x] **Step 3: Add a concise root README section**
 
 Add after the final bullet under `## Discovery → Triage → Apply` and before
 `## Claude Code / Cursor plugin`:
@@ -1761,7 +1769,7 @@ the package.
 See [hunter8_core/README.md](hunter8_core/README.md).
 ```
 
-- [ ] **Step 4: Run the full verification suite**
+- [x] **Step 4: Run the full verification suite**
 
 Run:
 
@@ -1777,7 +1785,7 @@ Expected:
 - compileall exits 0;
 - `git diff --check` prints nothing.
 
-- [ ] **Step 5: Confirm local CLI imports still load**
+- [x] **Step 5: Confirm local CLI imports still load**
 
 Run:
 
@@ -1792,12 +1800,23 @@ Expected:
 local imports: ok
 ```
 
-- [ ] **Step 6: Commit boundary documentation**
+- [x] **Step 6: Commit boundary documentation**
 
 ```bash
 git add hunter8_core/README.md README.md tests/test_core_ports.py
 git commit -m "docs: define the hunter8 core boundary"
 ```
+
+## Execution notes
+
+- **Plan gap (Task 6):** the file map listed `screen.py` and `score.py` as the
+  only callers of the screening prompt, but `calibrate.py:37` also calls
+  `screen._prompt` directly. Retyping `_prompt` to take a `JobPosting` broke it,
+  and only `tests/test_calibrate.py` caught it during the Task 7 full-suite gate.
+  Fixed by passing `job.to_posting()`, matching the other call sites. Calibration
+  keeps its own permissive `int(data.get("fit_score", 0))` read — it measures the
+  corpus rather than writing to it, so tightening its error behavior was left out
+  of scope.
 
 ## Plan self-review
 

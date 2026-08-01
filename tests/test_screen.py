@@ -8,12 +8,14 @@ from local_agent import LocalUnavailable
 
 
 class _FakeAgent:
-    def __init__(self, score=None, exc=None):
-        self.score, self.exc = score, exc
+    def __init__(self, score=None, exc=None, payload=None):
+        self.score, self.exc, self.payload = score, exc, payload
 
     def chat_json(self, system, user):
         if self.exc:
             raise self.exc
+        if self.payload is not None:
+            return self.payload
         return {"fit_score": self.score, "reason": "because"}
 
 
@@ -151,3 +153,16 @@ def test_default_threshold_is_the_calibrated_value():
     2026-07-28). Shipping 25 as the default meant every run since calibration
     screened at a value nobody chose."""
     assert screen.DEFAULT_THRESHOLD == 65
+
+
+def test_out_of_range_screen_score_is_visible_error(tmp_path):
+    conn = _conn(tmp_path)
+    screen.run_screening(
+        conn,
+        rubric_text="r",
+        agent=_FakeAgent(payload={"fit_score": 120, "reason": "bad"}),
+        threshold=65,
+    )
+    errored = dbmod.jobs_by_status(conn, "screen_error")
+    assert len(errored) == 1
+    assert "fit_score" in errored[0].screen_reason

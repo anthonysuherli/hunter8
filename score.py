@@ -6,7 +6,6 @@ import logging
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass
 from pathlib import Path
 
 import click
@@ -16,19 +15,10 @@ import claude_agent
 import db as dbmod
 import rubric
 from claude_agent import ClaudeAgent, ClaudeUnavailable
-from db import Job
+from hunter8_core import GradeAssessment, JobPosting, JsonModel
 
 load_dotenv()
 log = logging.getLogger(__name__)
-
-
-@dataclass
-class Verdict:
-    grade: str
-    reasoning: str
-    archetype: str
-    comp_signal: str
-    red_flags: list[str]
 
 
 _SYSTEM = (
@@ -39,20 +29,14 @@ _SYSTEM = (
 )
 
 
-def grade_job(job: Job, *, intent_md: str, agent: ClaudeAgent) -> Verdict:
+def grade_job(posting: JobPosting, *, intent_md: str,
+              agent: JsonModel) -> GradeAssessment:
     user = (
         f"# Candidate intent\n{intent_md}\n\n"
-        f"# Job posting\nCompany: {job.company}\nTitle: {job.title}\n"
-        f"Location: {job.location}\n\n{job.raw_text[:6000]}"
+        f"# Job posting\nCompany: {posting.company}\nTitle: {posting.title}\n"
+        f"Location: {posting.location}\n\n{posting.description[:6000]}"
     )
-    data = agent.chat_json(_SYSTEM, user)
-    return Verdict(
-        grade=str(data.get("grade", "C")).strip().upper()[:1] or "C",
-        reasoning=str(data.get("reasoning", "")),
-        archetype=str(data.get("archetype", "")),
-        comp_signal=str(data.get("comp_signal", "")),
-        red_flags=list(data.get("red_flags", []) or []),
-    )
+    return GradeAssessment.from_payload(agent.chat_json(_SYSTEM, user))
 
 
 def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
@@ -67,7 +51,8 @@ def run_scoring(conn: sqlite3.Connection, *, intent_md: str, agent: ClaudeAgent,
                                 limit=limit, posted_since=posted_since)
     for job in jobs:
         try:
-            v = grade_job(job, intent_md=intent_md, agent=agent)
+            v = grade_job(job.to_posting(), intent_md=intent_md,
+                          agent=agent)
         except ClaudeUnavailable:
             raise  # fail-fast: not logged in or out of quota — every job would fail
         except Exception as exc:  # noqa: BLE001 — visible, never a silent default

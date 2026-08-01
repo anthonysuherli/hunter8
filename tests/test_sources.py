@@ -4,6 +4,7 @@ from pathlib import Path
 
 import sources
 from db import Job
+from hunter8_core import JobPosting
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -15,17 +16,19 @@ def _load(name):
 def test_parse_greenhouse():
     jobs = sources.parse_greenhouse(_load("greenhouse.json"), company="Acme")
     assert len(jobs) == 1
+    assert isinstance(jobs[0], JobPosting)
     j = jobs[0]
     assert j.company == "Acme"
     assert j.title == "Research Engineer, Agents"
     assert j.location == "San Francisco, CA"
     assert j.url == "https://job-boards.greenhouse.io/acme/jobs/4017331008"
     assert j.source == "ats:greenhouse" and j.ats == "greenhouse"
-    assert "agentic" in j.raw_text.lower()
+    assert "agentic" in j.description.lower()
 
 
 def test_parse_ashby():
     jobs = sources.parse_ashby(_load("ashby.json"), company="Acme")
+    assert isinstance(jobs[0], JobPosting)
     j = jobs[0]
     assert j.title == "ML Engineer, Applied"
     assert j.url == "https://jobs.ashbyhq.com/acme/abc-123"
@@ -34,6 +37,7 @@ def test_parse_ashby():
 
 def test_parse_lever():
     jobs = sources.parse_lever(_load("lever.json"), company="Acme")
+    assert isinstance(jobs[0], JobPosting)
     j = jobs[0]
     assert j.title == "Staff ML Engineer"
     assert j.location == "New York, NY"
@@ -71,6 +75,7 @@ def test_parse_workday_detail_uses_start_date_not_relative_posted_on():
     a real day, so that is what must land in posted_at."""
     j = sources.parse_workday_detail(_load("workday_detail.json"), company="Acme",
                                      url="https://acme.wd5.myworkdayjobs.com/External/job/x")
+    assert isinstance(j, JobPosting)
     assert j.title == "Quantitative Research - Client Analytics"
     assert j.posted_at == "2026-07-17T00:00:00+00:00"
     assert j.ats == "workday" and j.source == "ats:workday"
@@ -80,8 +85,8 @@ def test_parse_workday_detail_uses_start_date_not_relative_posted_on():
 def test_parse_workday_detail_strips_html():
     j = sources.parse_workday_detail(_load("workday_detail.json"), company="Acme",
                                      url="https://x/y")
-    assert "<p>" not in j.raw_text and "<b>" not in j.raw_text
-    assert "agentic" in j.raw_text and "LLM evaluation" in j.raw_text
+    assert "<p>" not in j.description and "<b>" not in j.description
+    assert "agentic" in j.description and "LLM evaluation" in j.description
 
 
 def test_parse_workday_detail_skips_untitled_payload():
@@ -97,12 +102,13 @@ def test_parse_workday_detail_tolerates_missing_start_date():
 def test_parse_eightfold_converts_unix_timestamp():
     jobs = sources.parse_eightfold(_load("eightfold.json"), company="Millennium")
     assert len(jobs) == 2
+    assert isinstance(jobs[0], JobPosting)
     j = jobs[0]
     assert j.title == "Senior Quantitative Developer"
     assert j.url == "https://mlp.eightfold.ai/careers/job/755957773457"
     assert j.posted_at == "2026-07-27T00:00:00+00:00"
     assert j.ats == "eightfold"
-    assert "Information Technology" in j.raw_text
+    assert "Information Technology" in j.description
 
 
 def test_parse_eightfold_falls_back_to_id_when_url_missing():
