@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from hunter8_core import SourceConfig
+
 # workday boards are "tenant/server/site"; eightfold boards are "sub/domain".
 _VALID_ATS = {"greenhouse", "ashby", "lever", "workday", "eightfold"}
 
@@ -16,6 +18,9 @@ class Company:
     ats: str
     board: str
     archetype: str
+
+    def source_config(self) -> SourceConfig:
+        return SourceConfig(ats=self.ats, board=self.board, company=self.name)
 
 
 @dataclass

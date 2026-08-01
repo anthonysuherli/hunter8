@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from hunter8_core import JobPosting
+from hunter8_core import JobPosting, SourceConfig
 
 # Workday and Eightfold sit behind bot management and reject the default httpx
 # user-agent; the three JSON boards do not care.
@@ -253,6 +253,20 @@ def fetch_ats(ats: str, *, board: str, company: str, timeout: float = 20.0) -> l
     resp = httpx.get(url, timeout=timeout)
     resp.raise_for_status()
     return _PARSERS[ats](resp.json(), company=company)
+
+
+class ATSCompanySource:
+    """Local implementation of the hunter8_core CompanySource protocol."""
+
+    def fetch(
+        self, config: SourceConfig, *, timeout: float = 20.0
+    ) -> list[JobPosting]:
+        return fetch_ats(
+            config.ats,
+            board=config.board,
+            company=config.company,
+            timeout=timeout,
+        )
 
 
 def fetch_tavily(query: str, api_key: str, *, max_results: int = 5,

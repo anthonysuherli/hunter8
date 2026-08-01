@@ -1122,7 +1122,7 @@ git commit -m "feat: define hosted companion domain contracts"
 - Consumes: `SourceConfig`, `JobPosting`, `insert_posting()`.
 - Preserves: `run_discovery()` callers by making `ats_source` optional.
 
-- [ ] **Step 1: Write failing source-port tests**
+- [x] **Step 1: Write failing source-port tests**
 
 ```python
 # tests/test_core_ports.py
@@ -1196,7 +1196,7 @@ def test_core_package_has_no_local_or_third_party_imports():
         assert not (imported & forbidden), (path, imported & forbidden)
 ```
 
-- [ ] **Step 2: Run tests and verify missing protocols/injection**
+- [x] **Step 2: Run tests and verify missing protocols/injection**
 
 Run:
 
@@ -1206,7 +1206,7 @@ Run:
 
 Expected: FAIL because `ats_source` injection is not implemented.
 
-- [ ] **Step 3: Adapt the local watchlist and source implementation**
+- [x] **Step 3: Adapt the local watchlist and source implementation**
 
 Add:
 
@@ -1239,7 +1239,7 @@ class ATSCompanySource:
 
 Import `SourceConfig` alongside `JobPosting`.
 
-- [ ] **Step 4: Inject the source into discovery**
+- [x] **Step 4: Inject the source into discovery**
 
 Add:
 
@@ -1274,7 +1274,7 @@ if dbmod.insert_posting(conn, job):
 
 Use `insert_posting` for Tavily results as well.
 
-- [ ] **Step 5: Simplify existing discovery tests to use injection**
+- [x] **Step 5: Simplify existing discovery tests to use injection**
 
 In `tests/test_discover.py`, import `JobPosting` instead of `db.Job`, define a
 small fake source with `fetch(config, *, timeout=20.0)`, and pass it through the
@@ -1288,7 +1288,7 @@ assert n2 == 0
 For the failure-isolation test, raise only when `config.company == "Bad"` and
 return a `JobPosting` for `"Good"`.
 
-- [ ] **Step 6: Run focused discovery and boundary tests**
+- [x] **Step 6: Run focused discovery and boundary tests**
 
 Run:
 
@@ -1299,7 +1299,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit source injection**
+- [x] **Step 7: Commit source injection**
 
 ```bash
 git add tests/test_core_ports.py sources.py watchlist.py discover.py \
