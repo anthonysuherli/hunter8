@@ -33,7 +33,7 @@ const COMPANIES: CompanyRec[] = [
   { name: "Neuberger Berman", tier: "core", reason: "Req names MCP + RAG explicitly; regulated-enterprise depth applies.", pending: false, removed: false },
   { name: "Rogo", tier: "core", reason: "AI analyst for IB workflows; evidence: multi-agent runtime, eval harness.", pending: false, removed: false },
   { name: "Databricks", tier: "adjacent", reason: "Agent platform scale; trade-off: further from finance domain.", pending: false, removed: false },
-  { name: "Norm Ai", tier: "adjacent", reason: "Regulatory agents — your audit-trail work as the product.", pending: false, removed: false },
+  { name: "Norm Ai", tier: "adjacent", reason: "Regulatory agents — your audit-trail work as the product.", pending: true, removed: false },
   { name: "Notion", tier: "exploratory", reason: "Enterprise-knowledge surface; unproven finance angle.", pending: false, removed: false },
 ];
 
