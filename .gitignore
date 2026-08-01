@@ -19,3 +19,4 @@ hunter8.db.bak-*
 jobs-to-apply-*.md
 reports/
 .worktrees/
+.truenorth/
