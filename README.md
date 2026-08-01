@@ -43,11 +43,24 @@ python apply.py           # 6. (existing) submit the approved rows
   hundreds of jobs in one sitting can exhaust the subscription quota.
 - Requires `TAVILY_API_KEY` (web discovery); `sync_intent.py` needs `SUPABASE_URL` +
   `SUPABASE_SERVICE_ROLE_KEY` for the delapan KB.
+- To research profile/market gaps into the delapan KB before a sync, see
+  [docs/explore-quickstart.md](docs/explore-quickstart.md) (`/delapan:explore`).
+- Daily Cursor operator loop:
+  [docs/hunter8-quickstart.md](docs/hunter8-quickstart.md)
+  (`/hunter8:morning` → triage → apply).
 
-## Claude Code plugin
+## Core boundary
 
-`plugin/` is a local Claude Code plugin wrapping the loop. Install it from this
-repo, then run from the repo root:
+`hunter8_core/` contains provider-neutral posting, profile, company, source,
+assessment, and ranking contracts. Local SQLite workflow state, personal
+artifacts, model providers, tracking, and application automation remain outside
+the package.
+See [hunter8_core/README.md](hunter8_core/README.md).
+
+## Claude Code / Cursor plugin
+
+`plugin/` wraps the loop for both Claude Code (`.claude-plugin/`) and Cursor
+(`.cursor-plugin/`). From the repo root:
 
 | Command | Does |
 |---|---|
@@ -56,8 +69,16 @@ repo, then run from the repo root:
 | `/hunter8:health` | Queue counts, threshold drift, screen-vs-Claude agreement, cost |
 | `/hunter8:coverage [stale-days]` | Silent and stale watchlist boards, proposed additions |
 
+**Cursor install** (symlink so edits stay live):
+
+```bash
+ln -sfn "$(pwd)/plugin" ~/.cursor/plugins/local/hunter8
+```
+
+Then reload Cursor. Details: [plugin/README.md](plugin/README.md).
+
 The commands shell out to `analyze.py`, which is read-only and has `--json` on
-every subcommand — so the same reports work from a plain terminal with no Claude
+every subcommand — so the same reports work from a plain terminal with no agent
 session:
 
 ```bash

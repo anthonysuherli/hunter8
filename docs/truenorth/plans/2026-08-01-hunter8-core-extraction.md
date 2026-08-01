@@ -1703,7 +1703,7 @@ git commit -m "refactor: grade core postings through validated assessments"
 - Documents: what child plans may import from `hunter8_core`.
 - Enforces: stdlib-only core and no personal/local runtime imports.
 
-- [ ] **Step 1: Extend the boundary test to all package files**
+- [x] **Step 1: Extend the boundary test to all package files**
 
 Replace the single-level glob:
 
@@ -1725,7 +1725,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 2: Write the package boundary document**
+- [x] **Step 2: Write the package boundary document**
 
 ```markdown
 <!-- hunter8_core/README.md -->
@@ -1754,7 +1754,7 @@ Provider-neutral contracts shared by local hunter8 and the hosted companion.
 application edge.
 ```
 
-- [ ] **Step 3: Add a concise root README section**
+- [x] **Step 3: Add a concise root README section**
 
 Add after the final bullet under `## Discovery → Triage → Apply` and before
 `## Claude Code / Cursor plugin`:
@@ -1769,7 +1769,7 @@ the package.
 See [hunter8_core/README.md](hunter8_core/README.md).
 ```
 
-- [ ] **Step 4: Run the full verification suite**
+- [x] **Step 4: Run the full verification suite**
 
 Run:
 
@@ -1785,7 +1785,7 @@ Expected:
 - compileall exits 0;
 - `git diff --check` prints nothing.
 
-- [ ] **Step 5: Confirm local CLI imports still load**
+- [x] **Step 5: Confirm local CLI imports still load**
 
 Run:
 
@@ -1800,12 +1800,23 @@ Expected:
 local imports: ok
 ```
 
-- [ ] **Step 6: Commit boundary documentation**
+- [x] **Step 6: Commit boundary documentation**
 
 ```bash
 git add hunter8_core/README.md README.md tests/test_core_ports.py
 git commit -m "docs: define the hunter8 core boundary"
 ```
+
+## Execution notes
+
+- **Plan gap (Task 6):** the file map listed `screen.py` and `score.py` as the
+  only callers of the screening prompt, but `calibrate.py:37` also calls
+  `screen._prompt` directly. Retyping `_prompt` to take a `JobPosting` broke it,
+  and only `tests/test_calibrate.py` caught it during the Task 7 full-suite gate.
+  Fixed by passing `job.to_posting()`, matching the other call sites. Calibration
+  keeps its own permissive `int(data.get("fit_score", 0))` read — it measures the
+  corpus rather than writing to it, so tightening its error behavior was left out
+  of scope.
 
 ## Plan self-review
 

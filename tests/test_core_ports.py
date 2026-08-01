@@ -54,7 +54,7 @@ def test_core_package_has_no_local_or_third_party_imports():
         "db", "sources", "watchlist", "screen", "score", "rubric",
         "claude_agent", "local_agent", "httpx", "yaml", "dotenv",
     }
-    for path in Path("hunter8_core").glob("*.py"):
+    for path in Path("hunter8_core").rglob("*.py"):
         tree = ast.parse(path.read_text(), filename=str(path))
         imported = {
             node.names[0].name.split(".")[0]
