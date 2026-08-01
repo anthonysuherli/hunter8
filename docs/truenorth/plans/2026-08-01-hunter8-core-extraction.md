@@ -1321,7 +1321,7 @@ git commit -m "refactor: inject provider-neutral posting sources"
   `GradeAssessment.from_payload()`.
 - Error contract: malformed data raises `ValueError` with the bad field named.
 
-- [ ] **Step 1: Write failing validation tests**
+- [x] **Step 1: Write failing validation tests**
 
 ```python
 # tests/test_core_assessment.py
@@ -1378,7 +1378,7 @@ def test_grade_assessment_rejects_string_red_flags():
         })
 ```
 
-- [ ] **Step 2: Run tests and verify the module is absent**
+- [x] **Step 2: Run tests and verify the module is absent**
 
 Run:
 
@@ -1388,7 +1388,7 @@ Run:
 
 Expected: collection fails because `hunter8_core.assessment` does not exist.
 
-- [ ] **Step 3: Implement strict payload parsing**
+- [x] **Step 3: Implement strict payload parsing**
 
 ```python
 # hunter8_core/assessment.py
@@ -1465,7 +1465,7 @@ from hunter8_core.assessment import GradeAssessment, ScreenAssessment
 __all__ += ["GradeAssessment", "ScreenAssessment"]
 ```
 
-- [ ] **Step 4: Run assessment tests**
+- [x] **Step 4: Run assessment tests**
 
 Run:
 
@@ -1475,7 +1475,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit validation contracts**
+- [x] **Step 5: Commit validation contracts**
 
 ```bash
 git add hunter8_core/assessment.py hunter8_core/__init__.py \

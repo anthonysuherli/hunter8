@@ -12,6 +12,7 @@ from hunter8_core.models import (
     SourceConfig,
     WatchedCompany,
 )
+from hunter8_core.assessment import GradeAssessment, ScreenAssessment
 from hunter8_core.ports import (
     CompanyRecommender,
     CompanySource,
@@ -43,3 +44,5 @@ __all__ = [
     "SourceConfig",
     "WatchedCompany",
 ]
+
+__all__ += ["GradeAssessment", "ScreenAssessment"]
