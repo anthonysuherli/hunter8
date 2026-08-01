@@ -9,11 +9,24 @@
 #
 # Confirmed NOT on any public Greenhouse/Ashby/Lever board as of 2026-07-28 —
 # every plausible slug variant 404s, so these are reachable only via
-# tavily_queries: Citadel, Citadel Securities, Two Sigma, D.E. Shaw, Millennium,
-# Balyasny, Bridgewater, HRT, Susquehanna/SIG, XTX, Verition, Quantlab, PEAK6,
+# tavily_queries: Citadel, Citadel Securities, Two Sigma, D.E. Shaw,
+# Balyasny, Bridgewater, Susquehanna/SIG, Verition, Quantlab, PEAK6,
 # Walleye, Coatue, Arrowstreet, Numerai, Hamilton Lane, Geode, Bloomberg,
-# BlackRock, Goldman, JPM, Morgan Stanley, Jefferies, Evercore, Nasdaq, Cboe,
-# CME, S&P Global, MSCI, Moody's, FactSet, Morningstar.
+# BlackRock, Goldman, JPM, Evercore, Cboe,
+# CME, MSCI, Moody's, FactSet, Morningstar.
+#
+# Re-probed 2026-08-01 against every ATS (not just the three JSON boards), by
+# sniffing each careers page for its real host. Still tavily-only, with the
+# reason now known: BlackRock, PIMCO, T. Rowe Price, Franklin Templeton, KKR,
+# Brookfield, BNY, Moody's, FactSet, Cboe, CME, Morningstar, Wells Fargo,
+# Goldman, JPMorgan, Fidelity (careers pages expose no machine-readable ATS);
+# MSCI and ICE/NYSE (iCIMS — no adapter); Bank of America also runs Avature
+# alongside the Workday board added below; American Express and Citi expose
+# eightfold boards that 403 the API, so Citi is reached via Workday instead;
+# Jefferies' Workday CXS endpoint returns 422 on every site-name variant;
+# Neuberger Berman is on Workable (no adapter) — note this was the single
+# best-fit NYC opening in the 2026-07-26 sweep, so it needs manual checking
+# or a Workable adapter.
 # NOTE: tavily hits carry no posted_at, so any run using --since-days skips
 # them entirely. Run the screen without a date window to reach these.
 
@@ -354,6 +367,58 @@ companies:
     ats: eightfold
     board: mlp/mlp.com
     archetype: buy-side-ai
+
+  # --- NYC big-finance, Workday (added 2026-08-01) -------------------
+  # Closes out the 2026-07-26 NYC bank / asset-manager / PE sweep, which
+  # predated the workday adapter and so left every firm below reachable only
+  # through tavily (no posted_at, skipped by any --since-days run).
+  # Tenants were resolved by sniffing each careers page for its real ATS host
+  # rather than guessing slugs — guessing scored 1/25, sniffing 11/25. Counts
+  # are total postings / hits for searchText "New York" at probe time.
+  - name: Bank of America
+    ats: workday
+    board: ghr/wd1/lateral-us        # 1945 total / 170 NY
+    archetype: bank-ai
+  - name: Citi
+    ats: workday
+    board: citi/wd5/2                # 2000 total / 534 NY
+    archetype: bank-ai
+  - name: Barclays
+    ats: workday
+    board: barclays/wd3/External_Career_Site_Barclays   # 1030 / 55 NY
+    archetype: bank-ai
+  - name: State Street
+    ats: workday
+    board: statestreet/wd1/Global    # 1090 total / 11 NY
+    archetype: bank-ai
+  - name: Blackstone
+    ats: workday
+    board: blackstone/wd1/Blackstone_Careers   # 186 total / 108 NY
+    archetype: vc-pe
+  - name: Apollo Global
+    ats: workday
+    board: athene/wd5/Apollo_Careers  # 114 / 41 NY — tenant is "athene"
+    archetype: vc-pe
+  - name: AllianceBernstein
+    ats: workday
+    board: abglobal/wd1/alliancebernsteincareers   # 116 total / 15 NY
+    archetype: buy-side-ai
+  - name: Nuveen/TIAA
+    ats: workday
+    board: tiaa/wd1/Search           # 134 total / 26 NY
+    archetype: buy-side-ai
+  - name: Guggenheim
+    ats: workday
+    board: guggenheiminvestment/wd5/External   # 25 postings
+    archetype: buy-side-ai
+  - name: Mastercard
+    ats: workday
+    board: mastercard/wd1/CorporateCareers     # 1071 total / 113 NY
+    archetype: fintech-infra
+  - name: Capital One
+    ats: workday
+    board: capitalone/wd12/Capital_One         # 1733 total / 1597 NY
+    archetype: fintech-infra
 
   # --- Quant shops found on Greenhouse after sniffing their careers pages ---
   - name: Hudson River Trading
