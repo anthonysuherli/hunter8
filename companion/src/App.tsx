@@ -7,6 +7,8 @@ import type { Stage } from "./domain";
 import type { ComponentType } from "react";
 import { FrontDoor } from "./screens/FrontDoor";
 import { Upload } from "./screens/Upload";
+import { ProfileDraft } from "./screens/ProfileDraft";
+import { ThesisConfirm } from "./screens/ThesisConfirm";
 
 export const ApiContext = createContext<CompanionApi>(makeFakeApi());
 export const useApi = () => useContext(ApiContext);
@@ -15,6 +17,8 @@ export const useApi = () => useContext(ApiContext);
 export const SCREENS: Partial<Record<Stage, ComponentType>> = {
   front_door: FrontDoor,
   upload: Upload,
+  profile_draft: ProfileDraft,
+  awaiting_confirmation: ThesisConfirm,
 };
 
 export function App() {

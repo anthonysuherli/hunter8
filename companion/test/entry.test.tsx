@@ -52,7 +52,7 @@ describe("upload", () => {
     render(<App />);
     await userEvent.type(screen.getByPlaceholderText(/paste your résumé/i), "my resume text");
     await userEvent.click(screen.getByRole("button", { name: /extract/i }));
-    await screen.findByText(/Profile/);
+    await screen.findByRole("button", { name: /^answer$/i });
     expect(useApp.getState().stage).toBe("profile_draft");
     expect(useApp.getState().confirmedStages).toContain("upload");
   });
