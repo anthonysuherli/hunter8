@@ -39,7 +39,7 @@ describe("FakeCompanionApi", () => {
   });
 
   it("streams discovery rows to done, keeping a failed company visible", async () => {
-    const api = makeFakeApi({ failCompany: "Norm Ai" });
+    const api = makeFakeApi({ failCompany: "Databricks" });
     const frames: { rows: string; done: boolean }[] = [];
     await new Promise<void>((resolve) => {
       api.subscribeDiscovery((rows, done) => {
@@ -48,7 +48,7 @@ describe("FakeCompanionApi", () => {
       });
     });
     const last = JSON.parse(frames.at(-1)!.rows) as { company: string; state: string; detail: string }[];
-    const failed = last.find((r) => r.company === "Norm Ai");
+    const failed = last.find((r) => r.company === "Databricks");
     expect(failed?.state).toBe("source_error");
     expect(failed?.detail).toContain("source error");
     expect(last.filter((r) => r.state === "assessed").length).toBeGreaterThan(0);
