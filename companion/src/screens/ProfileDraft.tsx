@@ -34,7 +34,7 @@ export function ProfileDraft() {
       {lists.map(([key, items]) => (
         <section key={key} className="section">
           <h3>{SECTION_TITLES[key]}</h3>
-          <ul className="serif">{items.map((x) => <li key={x}>{x}</li>)}</ul>
+          <ul className="serif">{items.map((x, i) => <li key={`${key}-${i}`}>{x}</li>)}</ul>
           {active?.anchorSection === key && <EditorQuery question={active} onAnswer={answer} />}
         </section>
       ))}
