@@ -1499,7 +1499,7 @@ git commit -m "feat: validate provider-neutral assessment payloads"
 - Preserves: local status transitions, fail-fast unavailable-provider behavior,
   grade history, call cost, and queue ordering.
 
-- [ ] **Step 1: Add failing malformed-payload regression tests**
+- [x] **Step 1: Add failing malformed-payload regression tests**
 
 Add an optional raw payload to the screen fake:
 
@@ -1575,7 +1575,7 @@ def test_string_red_flags_are_not_split_into_characters(tmp_path):
     assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
 ```
 
-- [ ] **Step 2: Run regressions and verify permissive parsing fails them**
+- [x] **Step 2: Run regressions and verify permissive parsing fails them**
 
 Run:
 
@@ -1585,7 +1585,7 @@ Run:
 
 Expected: the new invalid-payload tests fail.
 
-- [ ] **Step 3: Refactor screen prompting and parsing**
+- [x] **Step 3: Refactor screen prompting and parsing**
 
 Use:
 
@@ -1629,7 +1629,7 @@ reason = assessment.reason
 
 Do not change the existing `LocalUnavailable` or per-item exception branches.
 
-- [ ] **Step 4: Refactor final grading to `GradeAssessment`**
+- [x] **Step 4: Refactor final grading to `GradeAssessment`**
 
 Remove `dataclass` and the local `Verdict`. Import:
 
@@ -1660,7 +1660,7 @@ v = grade_job(job.to_posting(), intent_md=intent_md, agent=agent)
 Keep `json.dumps(v.red_flags)`, cost recording, grade history, and
 `ClaudeUnavailable` behavior unchanged.
 
-- [ ] **Step 5: Update direct grade test input**
+- [x] **Step 5: Update direct grade test input**
 
 In `tests/test_score.py`, change the direct call in
 `test_grade_job_parses_verdict` to:
@@ -1673,7 +1673,7 @@ v = score.grade_job(
 )
 ```
 
-- [ ] **Step 6: Run screening and grading tests**
+- [x] **Step 6: Run screening and grading tests**
 
 Run:
 
@@ -1683,7 +1683,7 @@ Run:
 
 Expected: PASS, including the new visible-error cases.
 
-- [ ] **Step 7: Commit assessment integration**
+- [x] **Step 7: Commit assessment integration**
 
 ```bash
 git add screen.py score.py tests/test_screen.py tests/test_score.py

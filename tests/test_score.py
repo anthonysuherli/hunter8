@@ -27,7 +27,11 @@ def test_grade_job_parses_verdict():
     agent = _FakeAgent(verdict={
         "grade": "A", "reasoning": "agentic + finance", "archetype": "ai-finance-startup",
         "comp_signal": "$180k", "red_flags": []})
-    v = score.grade_job(_job("ML Engineer"), intent_md="intent", agent=agent)
+    v = score.grade_job(
+        _job("ML Engineer").to_posting(),
+        intent_md="intent",
+        agent=agent,
+    )
     assert v.grade == "A" and v.archetype == "ai-finance-startup"
 
 
@@ -170,3 +174,43 @@ def test_a_failed_grade_still_records_provenance(tmp_path):
     rows = conn.execute(
         "SELECT grade, brief_sha FROM grade_history").fetchall()
     assert [tuple(r) for r in rows] == [(None, "sha-under-test")]
+
+
+def test_invalid_grade_is_visible_score_error(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "AI Engineer", 90)
+    score.run_scoring(
+        conn,
+        intent_md="brief",
+        agent=_FakeAgent(verdict={
+            "grade": "A+",
+            "reasoning": "r",
+            "archetype": "lab",
+            "comp_signal": "",
+            "red_flags": [],
+        }),
+        brief_sha="test",
+    )
+    errored = dbmod.jobs_by_status(conn, "score_error")
+    assert len(errored) == 1
+    assert "grade" in errored[0].reasoning
+
+
+def test_string_red_flags_are_not_split_into_characters(tmp_path):
+    conn = dbmod.connect(tmp_path / "h.db")
+    dbmod.init_db(conn)
+    _screened(conn, "AI Engineer", 90)
+    score.run_scoring(
+        conn,
+        intent_md="brief",
+        agent=_FakeAgent(verdict={
+            "grade": "A",
+            "reasoning": "r",
+            "archetype": "lab",
+            "comp_signal": "",
+            "red_flags": "sponsorship unknown",
+        }),
+        brief_sha="test",
+    )
+    assert len(dbmod.jobs_by_status(conn, "score_error")) == 1
