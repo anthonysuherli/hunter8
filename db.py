@@ -6,6 +6,8 @@ from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 
+from hunter8_core import JobPosting
+
 DEFAULT_DB = "hunter8.db"
 
 _SCHEMA = """
@@ -71,6 +73,19 @@ class Job:
     screened_at: str | None = None
     cost_usd: float | None = None
 
+    def to_posting(self) -> JobPosting:
+        return JobPosting(
+            url=self.url,
+            company=self.company,
+            title=self.title,
+            location=self.location,
+            source=self.source,
+            ats=self.ats,
+            posted_at=self.posted_at,
+            description=self.raw_text,
+            fetched_at=self.discovered_at,
+        )
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -104,19 +119,34 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def insert_job(conn: sqlite3.Connection, job: Job) -> bool:
-    """Insert a discovered job. Returns True if inserted, False if the URL was
-    already present (dedup)."""
+def insert_posting(conn: sqlite3.Connection, posting: JobPosting) -> bool:
+    """Persist public posting data in the local workflow table. Returns True if
+    inserted, False if the URL was already present (dedup)."""
     cur = conn.execute(
         """INSERT OR IGNORE INTO jobs
            (url, company, title, location, source, ats, posted_at, raw_text,
             status, discovered_at)
            VALUES (?,?,?,?,?,?,?,?,?,?)""",
-        (job.url, job.company, job.title, job.location, job.source, job.ats,
-         job.posted_at, job.raw_text, "discovered", _now()),
+        (
+            posting.url,
+            posting.company,
+            posting.title,
+            posting.location,
+            posting.source,
+            posting.ats,
+            posting.posted_at,
+            posting.description,
+            "discovered",
+            posting.fetched_at or _now(),
+        ),
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+def insert_job(conn: sqlite3.Connection, job: Job) -> bool:
+    """Compatibility wrapper for local workflow callers."""
+    return insert_posting(conn, job.to_posting())
 
 
 def _row_to_job(row: sqlite3.Row) -> Job:

@@ -10,6 +10,14 @@
 
 **Tech Stack:** Python 3.11 typing/dataclasses, pytest 8.2, SQLite, httpx; no new runtime dependency.
 
+> **Deviation (2026-08-01, execution):** the project venv is Python 3.9.6, not
+> the 3.11 assumed above, and `@dataclass(slots=True)` requires 3.10+. Every
+> core dataclass therefore uses `@dataclass(frozen=True)` without `slots`.
+> Immutability — the only property the plan's tests assert — is unaffected;
+> `slots` is a memory and attribute-typo optimization. `slots=True` was the sole
+> 3.10+ construct in this plan, so nothing else changes. Restore it if the venv
+> is ever rebuilt on 3.10+.
+
 ## Global Constraints
 
 - Keep hunter8's personal database, profile artifacts, watchlist, tracker, résumé files, and application automation outside `hunter8_core`.
@@ -148,7 +156,7 @@ insert_job(conn: sqlite3.Connection, job: Job) -> bool  # compatibility wrapper
 - Produces: `JobPosting`, `SourceConfig`, `Job.to_posting()`, `insert_posting()`.
 - Preserves: `insert_job()` for existing local callers and tests.
 
-- [ ] **Step 1: Write failing core-model and mapping tests**
+- [x] **Step 1: Write failing core-model and mapping tests**
 
 ```python
 # tests/test_core_models.py
@@ -214,7 +222,7 @@ def test_insert_job_remains_a_compatibility_wrapper(tmp_path):
     assert dbmod.insert_job(conn, job) is False
 ```
 
-- [ ] **Step 2: Run the new tests and verify the boundary does not exist**
+- [x] **Step 2: Run the new tests and verify the boundary does not exist**
 
 Run:
 
@@ -224,7 +232,7 @@ Run:
 
 Expected: collection fails because `hunter8_core` does not exist.
 
-- [ ] **Step 3: Implement immutable core models**
+- [x] **Step 3: Implement immutable core models**
 
 ```python
 # hunter8_core/models.py
@@ -265,7 +273,7 @@ from hunter8_core.models import JobPosting, SourceConfig
 __all__ = ["JobPosting", "SourceConfig"]
 ```
 
-- [ ] **Step 4: Add explicit conversion and persistence methods**
+- [x] **Step 4: Add explicit conversion and persistence methods**
 
 Add the import:
 
@@ -323,7 +331,7 @@ def insert_job(conn: sqlite3.Connection, job: Job) -> bool:
     return insert_posting(conn, job.to_posting())
 ```
 
-- [ ] **Step 5: Run focused database tests**
+- [x] **Step 5: Run focused database tests**
 
 Run:
 
@@ -333,7 +341,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the domain boundary**
+- [x] **Step 6: Commit the domain boundary**
 
 ```bash
 git add hunter8_core/__init__.py hunter8_core/models.py \
