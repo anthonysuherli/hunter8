@@ -576,7 +576,7 @@ git commit -m "refactor: return core postings from job sources"
 - Preserves: stdlib-only immutable values; no parser, model, persistence, or
   hosted-service implementation.
 
-- [ ] **Step 1: Write failing domain-contract tests**
+- [x] **Step 1: Write failing domain-contract tests**
 
 ```python
 # tests/test_core_contracts.py
@@ -805,7 +805,7 @@ def test_adapter_protocol_exports_have_locked_method_names(
     assert callable(getattr(protocol, method_name))
 ```
 
-- [ ] **Step 2: Run the contract tests and verify the types are missing**
+- [x] **Step 2: Run the contract tests and verify the types are missing**
 
 Run:
 
@@ -815,7 +815,7 @@ Run:
 
 Expected: collection fails on the first missing domain export.
 
-- [ ] **Step 3: Add the remaining immutable domain values**
+- [x] **Step 3: Add the remaining immutable domain values**
 
 Add `from typing import Literal` beside the existing imports in
 `hunter8_core/models.py`, then append:
@@ -973,7 +973,7 @@ class RankedMatch:
             raise ValueError("rank must be at least 1")
 ```
 
-- [ ] **Step 4: Implement every provider-neutral adapter protocol**
+- [x] **Step 4: Implement every provider-neutral adapter protocol**
 
 ```python
 # hunter8_core/ports.py
@@ -1035,7 +1035,7 @@ class ShortlistRanker(Protocol):
         ...
 ```
 
-- [ ] **Step 5: Export the full contract**
+- [x] **Step 5: Export the full contract**
 
 Use explicit imports and `__all__` in `hunter8_core/__init__.py`:
 
@@ -1087,7 +1087,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 6: Run domain-contract tests**
+- [x] **Step 6: Run domain-contract tests**
 
 Run:
 
@@ -1097,7 +1097,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the complete core contract**
+- [x] **Step 7: Commit the complete core contract**
 
 ```bash
 git add hunter8_core/models.py hunter8_core/ports.py \
