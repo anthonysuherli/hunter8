@@ -54,7 +54,7 @@ describe("thesis confirmation", () => {
     render(<App />);
     expect(screen.getByText(/Work authorization unstated/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /confirm thesis/i }));
-    await screen.findByText(/Companies/);
+    await screen.findByRole("button", { name: /approve.*companies/i });
     expect(useApp.getState().profileVersion).toBe(1);
     expect(useApp.getState().stage).toBe("watchlist");
     expect(useApp.getState().confirmedStages).toEqual(

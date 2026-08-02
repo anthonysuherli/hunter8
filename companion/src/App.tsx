@@ -9,6 +9,7 @@ import { FrontDoor } from "./screens/FrontDoor";
 import { Upload } from "./screens/Upload";
 import { ProfileDraft } from "./screens/ProfileDraft";
 import { ThesisConfirm } from "./screens/ThesisConfirm";
+import { CompanyConfirm } from "./screens/CompanyConfirm";
 
 export const ApiContext = createContext<CompanionApi>(makeFakeApi());
 export const useApi = () => useContext(ApiContext);
@@ -19,6 +20,7 @@ export const SCREENS: Partial<Record<Stage, ComponentType>> = {
   upload: Upload,
   profile_draft: ProfileDraft,
   awaiting_confirmation: ThesisConfirm,
+  watchlist: CompanyConfirm,
 };
 
 export function App() {

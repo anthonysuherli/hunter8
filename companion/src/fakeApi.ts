@@ -86,7 +86,7 @@ export function makeFakeApi(opts: { failCompany?: string; emptyShortlist?: boole
     async getCompanies() { return structuredClone(COMPANIES); },
     async addCompany(careersUrl) {
       const name = new URL(careersUrl).hostname.replace(/^www\./, "").split(".")[0];
-      return { name, tier: "exploratory", reason: `Added by you (${careersUrl}) — verifying board.`, pending: true, removed: false };
+      return { name, tier: "exploratory", reason: `Added by you (${careersUrl}) — board being checked.`, pending: true, removed: false };
     },
     async approveCompanies() {},
     subscribeDiscovery(onUpdate) {
