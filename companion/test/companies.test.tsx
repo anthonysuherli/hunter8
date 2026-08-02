@@ -30,7 +30,7 @@ describe("company confirmation", () => {
   it("remove is undoable and adjusts the approve count", async () => {
     render(<App />);
     const row = (await screen.findByText("Notion")).closest(".ledger-row")!;
-    await userEvent.click(within(row as HTMLElement).getByRole("button", { name: "✕" }));
+    await userEvent.click(within(row as HTMLElement).getByRole("button", { name: "Remove Notion" }));
     expect(screen.getByText(/approve 4 companies/i)).toBeInTheDocument();
     await userEvent.click(within(row as HTMLElement).getByRole("button", { name: /undo/i }));
     expect(screen.getByText(/approve 5 companies/i)).toBeInTheDocument();
@@ -51,7 +51,6 @@ describe("company confirmation", () => {
     await userEvent.click(screen.getByRole("button", { name: /approve 5 companies/i }));
     expect(useApp.getState().stage).toBe("discovering");
   });
-});
 
   it("rejects an invalid URL inline without throwing", async () => {
     render(<App />);
@@ -60,3 +59,4 @@ describe("company confirmation", () => {
     await userEvent.click(screen.getByRole("button", { name: /^add$/i }));
     expect(await screen.findByText(/doesn't look like a URL/)).toBeInTheDocument();
   });
+});

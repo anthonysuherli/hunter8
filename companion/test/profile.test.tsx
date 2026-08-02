@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ApiContext } from "../src/App";
 import { App } from "../src/App";
+import type { CompanionApi } from "../src/api";
+import type { ProfileDraftData } from "../src/domain";
 import { makeFakeApi } from "../src/fakeApi";
 import { useApp } from "../src/store";
 
@@ -41,6 +44,36 @@ describe("profile draft with editor's queries", () => {
     }
     await userEvent.click(await screen.findByRole("button", { name: /review thesis/i }));
     expect(useApp.getState().stage).toBe("awaiting_confirmation");
+  });
+});
+
+describe("profile draft with an unanchored query", () => {
+  it("falls back to rendering after Evidence instead of dead-ending", async () => {
+    const draft: ProfileDraftData = {
+      roleShapes: ["Agentic systems engineer"],
+      hardConstraints: ["New York or remote (US)"],
+      preferredWork: [],
+      excludedWork: [],
+      evidence: [],
+      knownGaps: [],
+      employerThesis: "",
+      questions: [
+        { key: "thesis", prompt: "What's the employer thesis?",
+          reason: "Employer thesis unclear", anchorSection: "employerThesis" },
+      ],
+    };
+    const api: CompanionApi = {
+      ...makeFakeApi(),
+      async answerQuestion(key, answer) {
+        return { ...draft, questions: draft.questions.map((q) => (q.key === key ? { ...q, answer } : q)) };
+      },
+    };
+    useApp.setState({ stage: "profile_draft", confirmedStages: ["upload"], draft, profileVersion: null });
+    render(<ApiContext.Provider value={api}><App /></ApiContext.Provider>);
+    expect(screen.getByText(/Employer thesis unclear/)).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText(/your answer/i), "AI systems roles near investment decisions.");
+    await userEvent.click(screen.getByRole("button", { name: /^answer$/i }));
+    expect(await screen.findByRole("button", { name: /review thesis/i })).toBeInTheDocument();
   });
 });
 

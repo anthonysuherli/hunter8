@@ -28,10 +28,15 @@ export function Shortlist() {
   }, [stage]);
 
   const failures = discovery.filter((r) => r.state === "source_error");
+  const total = discovery.length;
+  const done = discovery.filter((r) => r.state === "assessed" || r.state === "source_error").length;
+  const heading = stage === "discovering" && total > 0
+    ? `Shortlist — discovering · ${done}/${total} boards read`
+    : "Shortlist";
 
   return (
     <div>
-      <h2>Shortlist</h2>
+      <h2>{heading}</h2>
       {stage === "discovering" && (
         <div>
           {discovery.map((r) => (
@@ -55,7 +60,14 @@ export function Shortlist() {
             const isOpen = open === item.postingUrl;
             return (
               <div key={item.postingUrl} className="ledger-item">
-                <div className="ledger-row" onClick={() => setOpen(isOpen ? null : item.postingUrl)}>
+                <div className="ledger-row" role="button" tabIndex={0}
+                  onClick={() => setOpen(isOpen ? null : item.postingUrl)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setOpen(isOpen ? null : item.postingUrl);
+                    }
+                  }}>
                   <div>
                     <strong>{item.title}</strong>
                     <div className="row-meta">
@@ -72,17 +84,22 @@ export function Shortlist() {
                     <h3>Why this fits</h3>
                     <p className="serif">{item.whyFit}</p>
                     {item.evidence.map((e) => <EvidenceBlock key={e.evidenceId} item={e} />)}
-                    <h3>Trade-offs &amp; unknowns</h3>
-                    <p className="serif">{item.tradeoffs.join(" ")}</p>
-                    <p>
-                      {item.constraintResults.filter((c) => c.status !== "pass").map((c) => (
-                        <ConstraintChip key={c.constraint} status={c.status}
-                          label={`${c.constraint}: ${c.explanation}`} />
-                      ))}
-                      {item.uncertainties.map((u) => (
-                        <ConstraintChip key={u} status="unknown" label={u} />
-                      ))}
-                    </p>
+                    {(item.tradeoffs.length > 0 || item.uncertainties.length > 0 ||
+                      item.constraintResults.some((c) => c.status !== "pass")) && (
+                      <>
+                        <h3>Trade-offs &amp; unknowns</h3>
+                        <p className="serif">{item.tradeoffs.join(" ")}</p>
+                        <p>
+                          {item.constraintResults.filter((c) => c.status !== "pass").map((c) => (
+                            <ConstraintChip key={c.constraint} status={c.status}
+                              label={`${c.constraint}: ${c.explanation}`} />
+                          ))}
+                          {item.uncertainties.map((u) => (
+                            <ConstraintChip key={u} status="unknown" label={u} />
+                          ))}
+                        </p>
+                      </>
+                    )}
                     <p>
                       <FeedbackPills value={item.feedback}
                         onChange={async (v) => {

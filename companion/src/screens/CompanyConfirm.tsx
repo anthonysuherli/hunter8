@@ -37,7 +37,8 @@ export function CompanyConfirm() {
       setAddError("That doesn't look like a URL — paste the full careers-page address.");
       return;
     }
-    setCompanies([...companies, await api.addCompany(url)]);
+    const added = await api.addCompany(url);
+    setCompanies([...useApp.getState().companies, added]);
     setUrl("");
   }
 
@@ -66,7 +67,7 @@ export function CompanyConfirm() {
                 </div>
                 {c.removed
                   ? <button className="pill" onClick={() => toggle(c.name)}>undo</button>
-                  : <button className="remove-x" aria-label="✕" onClick={() => toggle(c.name)}>✕</button>}
+                  : <button className="remove-x" aria-label={`Remove ${c.name}`} onClick={() => toggle(c.name)}>✕</button>}
               </div>
             ))}
           </section>

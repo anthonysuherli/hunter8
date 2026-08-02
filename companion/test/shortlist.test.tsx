@@ -31,6 +31,12 @@ describe("discovery fill-in", () => {
     renderWith(makeFakeApi({ emptyShortlist: true }));
     expect(await screen.findByText(/No postings matched/)).toBeInTheDocument();
   });
+
+  it("carries the run state in the header while discovering", async () => {
+    renderWith();
+    await screen.findByText("Hebbia");
+    expect(screen.getByRole("heading", { level: 2, name: /discovering · \d+\/\d+/ })).toBeInTheDocument();
+  });
 });
 
 describe("shortlist ledger", () => {

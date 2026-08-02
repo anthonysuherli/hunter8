@@ -66,4 +66,22 @@ describe("FakeCompanionApi", () => {
     expect((await api.confirmThesis()).version).toBe(1);
     expect((await api.confirmThesis()).version).toBe(2);
   });
+
+  it("approveCompanies constrains discovery to the approved list", async () => {
+    const api = makeFakeApi();
+    const companies = await api.getCompanies();
+    const kept = companies.filter((c) => c.name !== "Databricks").map((c) => c.name);
+    await api.approveCompanies(kept);
+    const frames: { company: string; state: string }[][] = [];
+    await new Promise<void>((resolve) => {
+      api.subscribeDiscovery((rows, done) => {
+        frames.push(rows);
+        if (done) resolve();
+      });
+    });
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) {
+      expect(frame.some((r) => r.company === "Databricks")).toBe(false);
+    }
+  });
 });

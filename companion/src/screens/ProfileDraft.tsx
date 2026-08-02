@@ -27,6 +27,7 @@ export function ProfileDraft() {
     ["preferredWork", draft.preferredWork],
     ["excludedWork", draft.excludedWork],
   ];
+  const isAnchored = !!active && lists.some(([key]) => key === active.anchorSection);
 
   return (
     <div>
@@ -41,6 +42,7 @@ export function ProfileDraft() {
       <section className="section">
         <h3>Evidence</h3>
         {draft.evidence.map((e) => <EvidenceBlock key={e.evidenceId} item={e} />)}
+        {active && !isAnchored && <EditorQuery question={active} onAnswer={answer} />}
       </section>
       {!active && (
         <button className="pill pill-active"

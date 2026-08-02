@@ -22,7 +22,8 @@ export function FrontDoor() {
         Upload a résumé. Confirm one career thesis. Receive an evidence-ranked
         shortlist of live roles. It never applies on your behalf.
       </p>
-      <input className="text-input" placeholder="email address" value={email}
+      <label htmlFor="email-input">Email address</label>
+      <input id="email-input" className="text-input" placeholder="email address" value={email}
         onChange={(e) => setEmail(e.target.value)} />
       <p><ClayButton onClick={submit}>Continue</ClayButton></p>
       <p>

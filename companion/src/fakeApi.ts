@@ -60,9 +60,10 @@ const SHORTLIST: ShortlistItem[] = [
 
 const DISCOVERY_SCRIPT: DiscoveryRow["state"][] = ["waiting", "fetching", "assessed"];
 
-export function makeFakeApi(opts: { failCompany?: string; emptyShortlist?: boolean } = {}): CompanionApi {
+export function makeFakeApi(opts: { failCompany?: string; emptyShortlist?: boolean; deleteFails?: boolean } = {}): CompanionApi {
   let version = 0;
   let draft: ProfileDraftData = structuredClone(DRAFT);
+  let approved: string[] | null = null;
   return {
     async signIn(email) {
       return INVITED.has(email)
@@ -88,9 +89,9 @@ export function makeFakeApi(opts: { failCompany?: string; emptyShortlist?: boole
       const name = new URL(careersUrl).hostname.replace(/^www\./, "").split(".")[0];
       return { name, tier: "exploratory", reason: `Added by you (${careersUrl}) — board being checked.`, pending: true, removed: false };
     },
-    async approveCompanies() {},
+    async approveCompanies(names) { approved = names; },
     subscribeDiscovery(onUpdate) {
-      const names = COMPANIES.filter((c) => !c.pending).map((c) => c.name);
+      const names = approved ?? COMPANIES.filter((c) => !c.pending).map((c) => c.name);
       let step = 0;
       const tick = () => {
         step += 1;
@@ -115,6 +116,6 @@ export function makeFakeApi(opts: { failCompany?: string; emptyShortlist?: boole
       return { items: structuredClone(SHORTLIST) };
     },
     async sendFeedback() {},
-    async deleteAccount() { return { state: "done" }; },
+    async deleteAccount() { return { state: opts.deleteFails ? "delete_error" : "done" }; },
   };
 }
