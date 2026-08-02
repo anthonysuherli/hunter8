@@ -123,3 +123,26 @@ def test_the_bucket_migration_converges_a_preexisting_bucket():
     sql = _sql()
     assert re.search(r"on conflict \(id\) do update set", sql, re.I)
     assert "public = excluded.public" in sql
+
+
+def test_every_table_referencing_auth_users_is_handled_by_deletion():
+    """F1 shipped because the step list was hand-maintained: `invites` has no
+    user_id column, only redeemed_by, so it was invisible to review."""
+    from companion_api import db
+
+    sql = _sql()
+    referencing = set()
+    for table in TABLES:
+        body = re.search(
+            rf"create table if not exists hunter8\.{table}\s*\((.*?)\n\);",
+            sql, re.I | re.S,
+        )
+        if body and re.search(r"references auth\.users", body.group(1), re.I):
+            referencing.add(table)
+
+    # Reachable by ON DELETE CASCADE from a table that IS deleted explicitly.
+    cascade_reachable = {"profile_questions", "company_theses", "watched_companies",
+                         "match_assessments", "shortlist_feedback"}
+    handled = set(db._DOMAIN_TABLES) | {"product_memberships", "invites"} | cascade_reachable
+    missing = referencing - handled
+    assert not missing, f"tables referencing auth.users with no deletion path: {missing}"

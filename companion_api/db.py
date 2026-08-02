@@ -135,22 +135,39 @@ def dossier_state(user_id: str) -> dict[str, Any]:
 
 def mark_deletion_state(user_id: str, state: str, detail: str | None = None) -> None:
     """Upsert the audit record for an account-deletion run. deletion_requests
-    has no FK to auth.users on purpose — the audit record outlives the user."""
+    has no FK to auth.users on purpose — the audit record outlives the user.
+
+    completed_at is always included (None unless the state is terminal): a
+    merge-duplicates upsert only overwrites columns present in the payload, so
+    omitting the key would let a stale terminal timestamp survive onto a
+    delete_pending row on retry."""
     payload: dict[str, Any] = {"user_id": user_id, "state": state, "detail": detail}
-    if state in ("done", "delete_error"):
-        payload["completed_at"] = datetime.now(timezone.utc).isoformat()
+    payload["completed_at"] = (
+        datetime.now(timezone.utc).isoformat() if state in ("done", "delete_error") else None
+    )
     _table("deletion_requests").upsert(payload, on_conflict="user_id").execute()
 
 
+def mark_membership_deleting(user_id: str) -> None:
+    """Close the upload gate before anything is removed: the storage insert
+    policy requires state = 'active'."""
+    _table("product_memberships").update({"state": "delete_pending"}).eq(
+        "user_id", user_id
+    ).execute()
+
+
 def clear_storage_objects(user_id: str) -> None:
-    """Remove every Storage object under the user's prefix. Must run before the
-    auth user is deleted — Supabase refuses to delete an auth user that still
-    owns Storage objects."""
+    """Page through every object under the user's prefix. Raising when objects
+    remain keeps the run visibly retryable rather than reporting done with
+    files left behind."""
     bucket = service_client().storage.from_(get_companion_settings().bucket)
-    existing = bucket.list(user_id)
-    paths = [f"{user_id}/{obj['name']}" for obj in existing or []]
-    if paths:
+    for _ in range(100):  # bounded: 100 pages x 1000 = 100k objects
+        page = bucket.list(user_id, {"limit": 1000}) or []
+        paths = [f"{user_id}/{obj['name']}" for obj in page]
+        if not paths:
+            return
         bucket.remove(paths)
+    raise RuntimeError(f"storage objects remain under {user_id}")
 
 
 def delete_domain_rows(user_id: str) -> None:
@@ -163,5 +180,18 @@ def delete_membership(user_id: str) -> None:
     _table("product_memberships").delete().eq("user_id", user_id).execute()
 
 
+def delete_invites_for(user_id: str) -> None:
+    """Redeemed invites hold the user's email and an ON DELETE SET NULL ref to
+    auth.users that collides with the redeemed_at/redeemed_by CHECK — leaving
+    one makes the auth-user delete fail permanently."""
+    _table("invites").delete().eq("redeemed_by", user_id).execute()
+
+
 def delete_auth_user(user_id: str) -> None:
-    service_client().auth.admin.delete_user(user_id)
+    """Idempotent: an already-deleted user is success, not failure."""
+    try:
+        service_client().auth.admin.delete_user(user_id)
+    except Exception as exc:  # noqa: BLE001 — a missing user means done
+        if getattr(exc, "status", None) == 404 or "not found" in str(exc).lower():
+            return
+        raise

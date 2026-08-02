@@ -18,7 +18,7 @@ from companion_api import db
 
 log = logging.getLogger(__name__)
 
-_STEPS = ["storage", "domain_rows", "membership", "auth_user"]
+_STEPS = ["storage", "domain_rows", "membership", "invites", "auth_user"]
 
 
 def deletion_plan(user_id: str) -> list[str]:
@@ -37,6 +37,8 @@ def _run_step(step: str, user_id: str) -> None:
         db.delete_domain_rows(user_id)
     elif step == "membership":
         db.delete_membership(user_id)
+    elif step == "invites":
+        db.delete_invites_for(user_id)
     elif step == "auth_user":
         db.delete_auth_user(user_id)
     else:  # pragma: no cover — _STEPS is closed
@@ -50,12 +52,18 @@ def delete_everything(user_id: str) -> str:
     have left data behind — and leaves the request in delete_error, which is
     retryable."""
     _mark(user_id, "delete_pending")
+    try:
+        db.mark_membership_deleting(user_id)
+    except Exception as exc:  # noqa: BLE001 — visible, never silently "done"
+        log.warning("deletion step %s failed for %s: %s", "gate", user_id, type(exc).__name__)
+        _mark(user_id, "delete_error", f"gate: {type(exc).__name__}"[:200])
+        return "delete_error"
     for step in deletion_plan(user_id):
         try:
             _run_step(step, user_id)
         except Exception as exc:  # noqa: BLE001 — visible, never silently "done"
-            log.warning("deletion step %s failed for %s: %s", step, user_id, exc)
-            _mark(user_id, "delete_error", f"{step}: {exc}"[:200])
+            log.warning("deletion step %s failed for %s: %s", step, user_id, type(exc).__name__)
+            _mark(user_id, "delete_error", f"{step}: {type(exc).__name__}"[:200])
             return "delete_error"
     _mark(user_id, "done")
     return "done"
