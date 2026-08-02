@@ -17,7 +17,13 @@ class CompanionSettings(BaseSettings):
     )
 
     def origins(self) -> list[str]:
-        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        values = [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        if "*" in values:
+            raise ValueError(
+                "HUNTER8_ALLOWED_ORIGINS must name explicit origins: '*' with "
+                "credentialed CORS lets any site read an authenticated response"
+            )
+        return values
 
 
 @lru_cache

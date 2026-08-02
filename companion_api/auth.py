@@ -40,36 +40,51 @@ def require_membership(request: Request) -> str:
     return user_id
 
 
+def require_membership_or_deleting(request: Request) -> str:
+    """Like require_membership, but also admits a membership already marked
+    delete_pending — otherwise a failed deletion could never be retried, and the
+    user would be locked out of finishing their own erasure."""
+    user_id = current_user(request)
+    if membership_for(user_id) is None:
+        raise HTTPException(
+            status_code=403, detail="this account has no hunter8 invite"
+        )
+    return user_id
+
+
 def redeem_invite(token: str, user_id: str) -> None:
     """Bind a single-use invite to a verified identity.
 
     Every check runs BEFORE any product row is created — the umbrella spec
     forbids creating an account and then testing an allowlist."""
+    # Rate limiting for this endpoint is deferred: slowapi is in the plan's
+    # stack but not wired yet, and belongs with the rollout plan.
+    _INVALID_TOKEN = HTTPException(
+        status_code=403, detail="this invite is not valid for your account"
+    )
     if membership_for(user_id) is not None:
         raise HTTPException(
             status_code=409, detail="this account already has a membership"
         )
     invite = invite_by_token(token)
     if invite is None:
-        raise HTTPException(status_code=403, detail="unknown invite")
+        raise _INVALID_TOKEN
     if invite.get("redeemed_at"):
-        raise HTTPException(status_code=403, detail="invite already used")
+        raise _INVALID_TOKEN
     expires = datetime.fromisoformat(invite["expires_at"])
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=403, detail="invite expired")
+        raise _INVALID_TOKEN
     email = auth_email_for(user_id)
     if email is None:
         raise HTTPException(
             status_code=403, detail="a confirmed email address is required"
         )
     if invite["email"].lower() != email:
-        raise HTTPException(
-            status_code=403, detail="invite is bound to a different email"
-        )
+        raise _INVALID_TOKEN
     if not mark_invite_redeemed(token, user_id):
-        raise HTTPException(status_code=403, detail="invite already used")
+        raise _INVALID_TOKEN
     try:
         create_membership(user_id, email, token)
     except Exception as exc:  # noqa: BLE001 — must not strand the invitee

@@ -8,7 +8,9 @@ from companion_api.settings import get_companion_settings
 
 def create_app() -> FastAPI:
     settings = get_companion_settings()
-    app = FastAPI(title="hunter8 companion", docs_url=None, redoc_url=None)
+    app = FastAPI(
+        title="hunter8 companion", docs_url=None, redoc_url=None, openapi_url=None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.origins(),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from companion_api import auth
@@ -14,7 +14,9 @@ class RedeemBody(BaseModel):
 
 @router.get("/session")
 def read_session(request: Request, user_id: str = Depends(auth.require_membership)):
-    row = auth.membership_for(user_id) or {}
+    row = auth.membership_for(user_id)
+    if row is None:  # raced with a deletion between the guard and here
+        raise HTTPException(status_code=403, detail="this account has no hunter8 invite")
     return {"user_id": user_id, "email": row.get("email"), "state": row.get("state")}
 
 

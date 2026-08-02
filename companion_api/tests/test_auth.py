@@ -42,12 +42,30 @@ def test_require_membership_returns_the_user_id_when_active(monkeypatch):
     assert auth.require_membership(_Req("Bearer x")) == "user-1"
 
 
+def test_require_membership_or_deleting_403s_without_a_membership(monkeypatch):
+    monkeypatch.setattr(auth, "verify_bearer", lambda h: "user-1")
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    with pytest.raises(HTTPException) as exc:
+        auth.require_membership_or_deleting(_Req("Bearer x"))
+    assert exc.value.status_code == 403
+
+
+def test_require_membership_or_deleting_admits_a_delete_pending_membership(monkeypatch):
+    monkeypatch.setattr(auth, "verify_bearer", lambda h: "user-1")
+    monkeypatch.setattr(
+        auth, "membership_for",
+        lambda uid: {"user_id": uid, "state": "delete_pending"},
+    )
+    assert auth.require_membership_or_deleting(_Req("Bearer x")) == "user-1"
+
+
 def test_redeem_rejects_an_unknown_token(monkeypatch):
     monkeypatch.setattr(auth, "membership_for", lambda uid: None)
     monkeypatch.setattr(auth, "invite_by_token", lambda t: None)
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("nope", "user-1")
     assert exc.value.status_code == 403
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_rejects_a_token_bound_to_a_different_email(monkeypatch):
@@ -61,7 +79,7 @@ def test_redeem_rejects_a_token_bound_to_a_different_email(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("tok", "user-1")
     assert exc.value.status_code == 403
-    assert "email" in exc.value.detail.lower()
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_rejects_an_already_redeemed_token(monkeypatch):
@@ -74,6 +92,7 @@ def test_redeem_rejects_an_already_redeemed_token(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("tok", "user-1")
     assert exc.value.status_code == 403
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_rejects_an_expired_token(monkeypatch):
@@ -86,7 +105,7 @@ def test_redeem_rejects_an_expired_token(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("tok", "user-1")
     assert exc.value.status_code == 403
-    assert "expired" in exc.value.detail.lower()
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_403s_when_auth_email_for_returns_none(monkeypatch):
@@ -116,7 +135,7 @@ def test_redeem_403s_when_trusted_email_differs_from_invite_email(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("tok", "user-1")
     assert exc.value.status_code == 403
-    assert "email" in exc.value.detail.lower()
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_403s_when_mark_invite_redeemed_loses_the_race(monkeypatch):
@@ -131,6 +150,7 @@ def test_redeem_403s_when_mark_invite_redeemed_loses_the_race(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.redeem_invite("tok", "user-1")
     assert exc.value.status_code == 403
+    assert exc.value.detail == "this invite is not valid for your account"
 
 
 def test_redeem_409s_when_a_membership_already_exists(monkeypatch):
