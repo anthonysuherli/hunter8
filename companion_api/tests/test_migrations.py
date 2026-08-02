@@ -60,7 +60,9 @@ def test_clients_get_read_only_access():
 
 
 def test_no_policy_grants_client_writes():
-    sql = _sql()
+    # Comments are stripped first: prose explaining a policy (e.g. a warning
+    # about `with check`) is not itself a policy, and must not fail this guard.
+    sql = re.sub(r"--[^\n]*", "", _sql())
     # Storage policies allow client writes (resumé uploads), so exclude them from this check.
     # Table policies must remain select-only.
     table_sql = re.sub(r"create policy[^;]*on storage\.objects[^;]*;", "", sql, flags=re.I | re.S)
@@ -101,3 +103,23 @@ def test_storage_objects_are_scoped_by_the_first_path_segment():
         assert "hunter8-resumes" in policy
         assert "storage.foldername" in policy
         assert "auth.uid()" in policy
+
+
+def test_resume_upload_requires_an_active_membership():
+    """Storage is the one client-writable surface and does not route through
+    companion_api, so the invite gate must be enforced in the policy itself."""
+    sql = _sql()
+    insert_policy = re.search(
+        r"create policy h8_resumes_insert_own[^;]*;", sql, re.I | re.S
+    )
+    assert insert_policy, "the resume insert policy is missing"
+    body = insert_policy.group(0)
+    assert "product_memberships" in body
+    assert "'active'" in body
+
+
+def test_the_bucket_migration_converges_a_preexisting_bucket():
+    """`do nothing` would silently leave a pre-existing public bucket public."""
+    sql = _sql()
+    assert re.search(r"on conflict \(id\) do update set", sql, re.I)
+    assert "public = excluded.public" in sql
