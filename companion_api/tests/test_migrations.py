@@ -49,3 +49,34 @@ def test_job_postings_is_reachable_only_through_owned_assessments():
     assert policy, "job_postings needs an explicit select policy"
     assert "match_assessments" in policy.group(0)
     assert "auth.uid()" in policy.group(0)
+
+
+def test_clients_get_read_only_access():
+    sql = _sql()
+    assert re.search(r"grant select on all tables in schema hunter8 to authenticated", sql, re.I)
+    assert not re.search(r"grant[^;]*insert[^;]*to authenticated", sql, re.I), (
+        "clients must not hold write privileges — every write goes through the service role"
+    )
+
+
+def test_no_policy_grants_client_writes():
+    sql = _sql()
+    assert "with check" not in sql.lower(), "a with-check clause implies a client write path"
+    assert not re.search(r"for all\b", sql, re.I), "policies must be select-only"
+
+
+def test_rls_is_forced_on_every_table():
+    sql = _sql()
+    for table in TABLES:
+        assert re.search(rf"alter table hunter8\.{table} force row level security", sql, re.I), table
+
+
+def test_service_role_can_reach_the_schema():
+    sql = _sql()
+    assert re.search(r"grant usage on schema hunter8 to service_role", sql, re.I)
+    assert re.search(r"grant all on all tables in schema hunter8 to service_role", sql, re.I)
+
+
+def test_invite_tokens_are_single_use():
+    sql = _sql()
+    assert re.search(r"invite_token\s+text\s+unique\s+references", sql, re.I)

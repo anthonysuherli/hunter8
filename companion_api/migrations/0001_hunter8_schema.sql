@@ -8,13 +8,14 @@ create table if not exists hunter8.invites (
   created_at    timestamptz not null default now(),
   expires_at    timestamptz not null,
   redeemed_at   timestamptz,
-  redeemed_by   uuid references auth.users on delete set null
+  redeemed_by   uuid references auth.users on delete set null,
+  check ((redeemed_at is null) = (redeemed_by is null))
 );
 
 create table if not exists hunter8.product_memberships (
   user_id       uuid primary key references auth.users on delete cascade,
   email         text not null,
-  invite_token  text references hunter8.invites(token),
+  invite_token  text unique references hunter8.invites(token),
   state         text not null default 'active'
                 check (state in ('active', 'delete_pending')),
   created_at    timestamptz not null default now()
@@ -27,7 +28,8 @@ create table if not exists hunter8.resume_uploads (
   parse_state   text not null default 'uploaded'
                 check (parse_state in ('uploaded', 'parsed', 'parse_error')),
   parse_error   text,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  check (parse_state <> 'parse_error' or parse_error is not null)
 );
 
 create table if not exists hunter8.profile_drafts (
@@ -99,7 +101,9 @@ create table if not exists hunter8.match_assessments (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references auth.users on delete cascade,
   profile_id    uuid not null references hunter8.confirmed_profiles on delete cascade,
-  posting_url   text not null references hunter8.job_postings on delete cascade,
+  -- Shared posting data is not user-controlled; GC of a posting must not
+  -- silently destroy users' assessments and their feedback.
+  posting_url   text not null references hunter8.job_postings on delete restrict,
   score         integer not null check (score between 0 and 100),
   constraint_results jsonb not null default '[]',
   explanation   text,
@@ -131,13 +135,17 @@ create table if not exists hunter8.pipeline_runs (
   updated_at    timestamptz not null default now()
 );
 
+-- user_id deliberately has NO foreign key to auth.users: the audit record
+-- must outlive the deleted user. This is the one intentional exception to
+-- "every user-owned row references auth.users".
 create table if not exists hunter8.deletion_requests (
   user_id       uuid primary key,
   state         text not null default 'delete_pending'
                 check (state in ('delete_pending', 'done', 'delete_error')),
   detail        text,
   requested_at  timestamptz not null default now(),
-  completed_at  timestamptz
+  completed_at  timestamptz,
+  check (state <> 'done' or completed_at is not null)
 );
 
 create index if not exists idx_h8_uploads_user on hunter8.resume_uploads(user_id);
@@ -149,3 +157,7 @@ create index if not exists idx_h8_assessments_user on hunter8.match_assessments(
 create index if not exists idx_h8_feedback_user on hunter8.shortlist_feedback(user_id);
 create index if not exists idx_h8_runs_user on hunter8.pipeline_runs(user_id);
 create index if not exists idx_h8_invites_email on hunter8.invites(email);
+create index if not exists idx_h8_theses_user on hunter8.company_theses(user_id);
+create index if not exists idx_h8_assessments_posting on hunter8.match_assessments(posting_url, user_id);
+create index if not exists idx_h8_questions_draft on hunter8.profile_questions(draft_id);
+create index if not exists idx_h8_feedback_assessment on hunter8.shortlist_feedback(assessment_id);
