@@ -42,18 +42,48 @@ def invite_by_token(token: str) -> dict[str, Any] | None:
     return rows.data[0] if rows.data else None
 
 
-def mark_invite_redeemed(token: str, user_id: str) -> None:
-    _table("invites").update(
-        {"redeemed_at": datetime.now(timezone.utc).isoformat(), "redeemed_by": user_id}
-    ).eq("token", token).is_("redeemed_at", "null").execute()
+def mark_invite_redeemed(token: str, user_id: str) -> bool:
+    """Conditional single-statement update; returns False if another caller won
+    the race (the UPDATE re-evaluates its WHERE against the updated row)."""
+    res = (
+        _table("invites")
+        .update({"redeemed_at": datetime.now(timezone.utc).isoformat(),
+                 "redeemed_by": user_id})
+        .eq("token", token)
+        .is_("redeemed_at", "null")
+        .execute()
+    )
+    return bool(res.data)
+
+
+def release_invite(token: str) -> None:
+    """Undo a redemption stamp when the membership write failed, so a retry is
+    possible. Without this a transient failure locks the invitee out of the
+    product's only onboarding path."""
+    _table("invites").update({"redeemed_at": None, "redeemed_by": None}).eq(
+        "token", token
+    ).execute()
 
 
 def create_membership(user_id: str, email: str, invite_token: str) -> None:
-    _table("product_memberships").upsert(
+    _table("product_memberships").insert(
         {"user_id": user_id, "email": email, "invite_token": invite_token,
          "state": "active"},
-        on_conflict="user_id",
     ).execute()
+
+
+def auth_email_for(user_id: str) -> str | None:
+    """The verified email on the Supabase auth record. This is the ONLY trusted
+    email source: verify_bearer returns just the subject, so an email passed in
+    by the caller proves nothing."""
+    res = service_client().auth.admin.get_user_by_id(user_id)
+    user = getattr(res, "user", None)
+    if user is None:
+        return None
+    if not getattr(user, "email_confirmed_at", None):
+        return None
+    email = getattr(user, "email", None)
+    return email.lower() if email else None
 
 
 def issue_invite(email: str) -> str:
