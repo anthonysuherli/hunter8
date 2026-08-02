@@ -1,0 +1,26 @@
+:root {
+  --background: #faf9f5; --surface1: #f0eee6; --surface2: #e8e6dc;
+  --surface3: #d1cfc5; --border: #e8e6dc; --border-visible: #d1cfc5;
+  --text1: #141413; --text2: #5e5d59; --text3: #87867f; --text4: #b0aea5;
+  --accent: #d97757; --accent-subtle: #faf0eb;
+  --error: #bf4d43; --error-bg: #faeeec;
+  --focus: #2c84db;
+  --font-sans: "General Sans", -apple-system, "Helvetica Neue", sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --radius-control: 8px; --radius-component: 12px; --radius-pill: 999px;
+  --ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #141413; --surface1: #1a1918; --surface2: #262624;
+    --surface3: #3d3d3a; --border: #262624; --border-visible: #3d3d3a;
+    --text1: #faf9f5; --text2: #b0aea5; --text3: #87867f; --text4: #5e5d59;
+    --accent-subtle: #331709; --error-bg: #4a1d19;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--background); color: var(--text1);
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.4;
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

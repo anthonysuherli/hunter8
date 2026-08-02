@@ -57,6 +57,9 @@ artifacts, model providers, tracking, and application automation remain outside
 the package.
 See [hunter8_core/README.md](hunter8_core/README.md).
 
+The hosted companion's frontend lives in [companion/](companion/) — a separate
+app with its own dependencies that imports nothing from this repo's root.
+
 ## Claude Code / Cursor plugin
 
 `plugin/` wraps the loop for both Claude Code (`.claude-plugin/`) and Cursor
