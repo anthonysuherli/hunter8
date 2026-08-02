@@ -15,6 +15,14 @@ from companion_api.settings import get_companion_settings
 
 _SCHEMA = "hunter8"
 
+# Child rows cascade from their parents, so only the roots are listed; ordering
+# within domain_rows is handled by the foreign keys' ON DELETE CASCADE.
+_DOMAIN_TABLES = [
+    "shortlist_feedback", "match_assessments", "watched_companies",
+    "company_theses", "confirmed_profiles", "profile_questions",
+    "profile_drafts", "resume_uploads", "pipeline_runs",
+]
+
 
 def _table(name: str):
     return service_client().schema(_SCHEMA).table(name)
@@ -123,3 +131,37 @@ def dossier_state(user_id: str) -> dict[str, Any]:
         "companies": companies.count or 0,
         "shortlist": shortlist.count or 0,
     }
+
+
+def mark_deletion_state(user_id: str, state: str, detail: str | None = None) -> None:
+    """Upsert the audit record for an account-deletion run. deletion_requests
+    has no FK to auth.users on purpose — the audit record outlives the user."""
+    payload: dict[str, Any] = {"user_id": user_id, "state": state, "detail": detail}
+    if state in ("done", "delete_error"):
+        payload["completed_at"] = datetime.now(timezone.utc).isoformat()
+    _table("deletion_requests").upsert(payload, on_conflict="user_id").execute()
+
+
+def clear_storage_objects(user_id: str) -> None:
+    """Remove every Storage object under the user's prefix. Must run before the
+    auth user is deleted — Supabase refuses to delete an auth user that still
+    owns Storage objects."""
+    bucket = service_client().storage.from_(get_companion_settings().bucket)
+    existing = bucket.list(user_id)
+    paths = [f"{user_id}/{obj['name']}" for obj in existing or []]
+    if paths:
+        bucket.remove(paths)
+
+
+def delete_domain_rows(user_id: str) -> None:
+    """Delete every domain root row for the user. Child rows cascade."""
+    for table in _DOMAIN_TABLES:
+        _table(table).delete().eq("user_id", user_id).execute()
+
+
+def delete_membership(user_id: str) -> None:
+    _table("product_memberships").delete().eq("user_id", user_id).execute()
+
+
+def delete_auth_user(user_id: str) -> None:
+    service_client().auth.admin.delete_user(user_id)
