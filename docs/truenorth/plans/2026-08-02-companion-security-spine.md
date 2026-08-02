@@ -1083,6 +1083,24 @@ git commit -m "feat(companion-api): private resume bucket scoped by user id"
 
 ### Task 5: The idempotent deletion path
 
+> **PLAN DEFECT, fixed during execution (commit `e6f1617`) — the step list below
+> is superseded.** Deletion could never converge, for any user. Task 2's own
+> hardening added `check ((redeemed_at is null) = (redeemed_by is null))` to
+> `hunter8.invites`, which collides with `redeemed_by uuid references auth.users
+> on delete set null`: deleting the auth user fires SET NULL, nulling
+> `redeemed_by` while `redeemed_at` stays set, violating the check and failing
+> the delete permanently for everyone who had redeemed an invite. `invites` was
+> invisible to review because it has no `user_id` column — only `redeemed_by`.
+> The real `_STEPS` is `["storage", "domain_rows", "membership", "invites",
+> "auth_user"]`; removing invites also stops the user's email outliving their
+> account. Also corrected: storage paged only the first 100 objects and then
+> reported `done`; an already-deleted auth user raised, downgrading a terminal
+> `done` to `delete_error`; the membership gate was never closed, so a client
+> could re-upload into the prefix mid-deletion; and raw exception text (which
+> Postgres routinely fills with row values) was persisted into an audit row
+> designed to outlive the user.
+> A new test now ties the step list to every table referencing `auth.users`.
+
 **Files:**
 - Create: `companion_api/deletion.py`, `companion_api/tests/test_deletion.py`
 
