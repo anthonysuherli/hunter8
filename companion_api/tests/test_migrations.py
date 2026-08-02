@@ -61,8 +61,11 @@ def test_clients_get_read_only_access():
 
 def test_no_policy_grants_client_writes():
     sql = _sql()
-    assert "with check" not in sql.lower(), "a with-check clause implies a client write path"
-    assert not re.search(r"for all\b", sql, re.I), "policies must be select-only"
+    # Storage policies allow client writes (resumé uploads), so exclude them from this check.
+    # Table policies must remain select-only.
+    table_sql = re.sub(r"create policy[^;]*on storage\.objects[^;]*;", "", sql, flags=re.I | re.S)
+    assert "with check" not in table_sql.lower(), "table policies must not have with-check"
+    assert not re.search(r"for all\b", table_sql, re.I), "table policies must be select-only"
 
 
 def test_rls_is_forced_on_every_table():
@@ -80,3 +83,21 @@ def test_service_role_can_reach_the_schema():
 def test_invite_tokens_are_single_use():
     sql = _sql()
     assert re.search(r"invite_token\s+text\s+unique\s+references", sql, re.I)
+
+
+def test_the_resume_bucket_is_private():
+    sql = _sql()
+    assert re.search(r"insert into storage\.buckets", sql, re.I)
+    assert re.search(r"'hunter8-resumes'\s*,\s*'hunter8-resumes'\s*,\s*false", sql, re.I), (
+        "the bucket must be created with public = false"
+    )
+
+
+def test_storage_objects_are_scoped_by_the_first_path_segment():
+    sql = _sql()
+    policies = re.findall(r"create policy[^;]*on storage\.objects[^;]*;", sql, re.I | re.S)
+    assert len(policies) >= 3, "need select/insert/delete policies"
+    for policy in policies:
+        assert "hunter8-resumes" in policy
+        assert "storage.foldername" in policy
+        assert "auth.uid()" in policy
