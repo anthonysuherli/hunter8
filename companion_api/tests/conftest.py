@@ -16,6 +16,7 @@ from __future__ import annotations
 import pytest
 
 import companion_api.db as db
+from companion_api import ratelimit
 
 
 class ProductionReachAttempt(RuntimeError):
@@ -34,3 +35,12 @@ def _no_supabase_client(request, monkeypatch):
         )
 
     monkeypatch.setattr(db, "service_client", _refuse)
+
+
+@pytest.fixture(autouse=True)
+def _reset_ratelimit():
+    """The limiter is process-global state; without this, hit counts from one
+    test could leak into the next and make results order-dependent."""
+    ratelimit.reset()
+    yield
+    ratelimit.reset()

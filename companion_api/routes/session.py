@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from companion_api import auth
+from companion_api.ratelimit import check as ratelimit_check
 
 router = APIRouter()
 
@@ -25,5 +26,6 @@ def redeem(body: RedeemBody, request: Request):
     """The one route a member-less identity may call. Invite checks run inside
     redeem_invite BEFORE any product row exists."""
     user_id = auth.current_user(request)
+    ratelimit_check(f"redeem:{user_id}", limit=5, window_seconds=60.0)
     auth.redeem_invite(body.token, user_id)
     return {"state": "active"}

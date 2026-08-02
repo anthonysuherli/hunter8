@@ -118,6 +118,20 @@ def test_resume_upload_requires_an_active_membership():
     assert "'active'" in body
 
 
+def test_resume_upload_is_pinned_to_a_flat_path():
+    """F2: h8_resumes_insert_own only checked the FIRST path segment, so
+    "<uid>/a/b/f.pdf" was accepted even though clear_storage_objects lists one
+    level and would leave nested files behind while deletion reports done."""
+    sql = _sql()
+    insert_policy = re.search(
+        r"create policy h8_resumes_insert_own[^;]*;", sql, re.I | re.S
+    )
+    assert insert_policy, "the resume insert policy is missing"
+    body = insert_policy.group(0)
+    assert "array_length" in body
+    assert re.search(r"=\s*1\b", body)
+
+
 def test_the_bucket_migration_converges_a_preexisting_bucket():
     """`do nothing` would silently leave a pre-existing public bucket public."""
     sql = _sql()

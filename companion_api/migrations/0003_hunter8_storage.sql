@@ -34,11 +34,15 @@ create policy h8_resumes_read_own on storage.objects
 -- delapan user with no hunter8 invite could write into this bucket. Read and
 -- delete stay ownership-only on purpose, so a user whose membership is
 -- delete_pending can still remove their own file.
+-- Paths must be exactly "<user_id>/<object>"; nesting is refused so the
+-- deletion sweep (which lists one level via bucket.list(user_id)) can never
+-- miss a file left behind under a nested prefix.
 create policy h8_resumes_insert_own on storage.objects
   for insert to authenticated
   with check (
     bucket_id = 'hunter8-resumes'
     and (storage.foldername(name))[1] = auth.uid()::text
+    and array_length(storage.foldername(name), 1) = 1
     and exists (
       select 1 from hunter8.product_memberships m
       where m.user_id = auth.uid() and m.state = 'active'

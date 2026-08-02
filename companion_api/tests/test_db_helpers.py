@@ -23,9 +23,14 @@ def test_service_client_is_confined_to_this_module():
     from pathlib import Path
 
     pkg = Path(db.__file__).resolve().parent
-    # db.py owns the client. This file and conftest.py name it only to assert on
-    # it and to block it — they enforce the boundary rather than crossing it.
-    exempt = {Path(__file__).resolve(), (Path(__file__).parent / "conftest.py").resolve()}
+    # db.py owns the client. This file, conftest.py, and test_db_calls.py name
+    # it only to assert on it, block it, or monkeypatch it for a fake double —
+    # they enforce the boundary rather than crossing it.
+    exempt = {
+        Path(__file__).resolve(),
+        (Path(__file__).parent / "conftest.py").resolve(),
+        (Path(__file__).parent / "test_db_calls.py").resolve(),
+    }
     for path in pkg.rglob("*.py"):
         if path.name == "db.py" or ".venv" in path.parts or path.resolve() in exempt:
             continue

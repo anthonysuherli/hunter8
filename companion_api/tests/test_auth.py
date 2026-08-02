@@ -45,9 +45,28 @@ def test_require_membership_returns_the_user_id_when_active(monkeypatch):
 def test_require_membership_or_deleting_403s_without_a_membership(monkeypatch):
     monkeypatch.setattr(auth, "verify_bearer", lambda h: "user-1")
     monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: None)
     with pytest.raises(HTTPException) as exc:
         auth.require_membership_or_deleting(_Req("Bearer x"))
     assert exc.value.status_code == 403
+
+
+def test_require_membership_or_deleting_403s_when_a_prior_deletion_finished(monkeypatch):
+    monkeypatch.setattr(auth, "verify_bearer", lambda h: "user-1")
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: "done")
+    with pytest.raises(HTTPException) as exc:
+        auth.require_membership_or_deleting(_Req("Bearer x"))
+    assert exc.value.status_code == 403
+
+
+def test_require_membership_or_deleting_admits_a_caller_whose_deletion_never_completed(monkeypatch):
+    """F1: deletion removes the membership row at step 3 of 5 — a failure in
+    the last two steps must not lock the user out of finishing their erasure."""
+    monkeypatch.setattr(auth, "verify_bearer", lambda h: "user-1")
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: "delete_error")
+    assert auth.require_membership_or_deleting(_Req("Bearer x")) == "user-1"
 
 
 def test_require_membership_or_deleting_admits_a_delete_pending_membership(monkeypatch):

@@ -28,6 +28,7 @@ def test_every_data_route_requires_a_membership(client, monkeypatch):
     was 401-with-no-header (which current_user also satisfies). Assert 403 with
     a verified identity but no membership, on every membership-gated route."""
     monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: None)
     for method, path, kwargs in [
         ("get", "/session", {}),
         ("get", "/dossier", {}),
@@ -70,6 +71,27 @@ def test_redeem_does_not_require_an_existing_membership(client, monkeypatch):
     assert seen == {"token": "tok", "user": "user-1"}
 
 
+def test_redeem_429s_a_verified_caller_after_five_attempts_in_a_window(client, monkeypatch):
+    """F4: the redeem route is the one a member-less identity may call, which
+    makes it the natural target for a token-guessing loop — it must be
+    rate-limited per verified subject."""
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "redeem_invite", lambda t, u: None)
+    for _ in range(5):
+        res = client.post(
+            "/session/redeem",
+            json={"token": "tok"},
+            headers={"authorization": "Bearer x"},
+        )
+        assert res.status_code == 200
+    res = client.post(
+        "/session/redeem",
+        json={"token": "tok"},
+        headers={"authorization": "Bearer x"},
+    )
+    assert res.status_code == 429
+
+
 def test_dossier_returns_only_the_callers_state(client, monkeypatch):
     monkeypatch.setattr(
         auth, "membership_for",
@@ -101,6 +123,50 @@ def test_delete_account_reports_the_deletion_state(client, monkeypatch):
     assert res.json() == {"state": "done"}
 
 
+def test_delete_account_admits_a_caller_whose_deletion_never_completed(client, monkeypatch):
+    """F1: membership is gone (deletion step 3 already ran) but the run ended in
+    delete_error — the caller must still be able to retry, not 403 forever."""
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: "delete_error")
+    monkeypatch.setattr(
+        "companion_api.routes.account.delete_everything", lambda uid: "done"
+    )
+    res = client.delete("/account", headers={"authorization": "Bearer x"})
+    assert res.status_code == 200
+    assert res.json() == {"state": "done"}
+
+
+def test_delete_account_403s_when_a_prior_deletion_already_finished(client, monkeypatch):
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: "done")
+    res = client.delete("/account", headers={"authorization": "Bearer x"})
+    assert res.status_code == 403
+
+
+def test_delete_account_403s_when_no_membership_and_no_deletion_ever_ran(client, monkeypatch):
+    monkeypatch.setattr(auth, "membership_for", lambda uid: None)
+    monkeypatch.setattr(auth, "deletion_state_for", lambda uid: None)
+    res = client.delete("/account", headers={"authorization": "Bearer x"})
+    assert res.status_code == 403
+
+
+def test_data_routes_403_a_delete_pending_membership_but_delete_account_does_not(client, monkeypatch):
+    """F6: /session and /dossier must use the strict guard (require_membership),
+    while DELETE /account uses the permissive one (require_membership_or_deleting).
+    A regression that swaps either guard must fail this test."""
+    monkeypatch.setattr(
+        auth, "membership_for",
+        lambda uid: {"user_id": uid, "email": "a@b.c", "state": "delete_pending"},
+    )
+    monkeypatch.setattr(
+        "companion_api.routes.account.delete_everything", lambda uid: "done"
+    )
+    assert client.get("/session", headers={"authorization": "Bearer x"}).status_code == 403
+    assert client.get("/dossier", headers={"authorization": "Bearer x"}).status_code == 403
+    res = client.delete("/account", headers={"authorization": "Bearer x"})
+    assert res.status_code in (200, 503)
+
+
 def test_delete_account_surfaces_a_failure_as_delete_error(client, monkeypatch):
     monkeypatch.setattr(
         auth, "membership_for",
@@ -128,3 +194,4 @@ def test_delete_account_can_be_retried_after_a_previous_delete_error(client, mon
     res = client.delete("/account", headers={"authorization": "Bearer x"})
     assert res.status_code == 200
     assert res.json() == {"state": "done"}
+

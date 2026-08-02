@@ -1,6 +1,19 @@
 """Companion authorization: a verified Supabase identity, then an invite-bound
 hunter8 product membership. Token verification is delegated to delapan's
-audited `verify_bearer` — re-implementing it is forbidden (see test_boundary)."""
+audited `verify_bearer` — re-implementing it is forbidden (see test_boundary).
+
+Signup-ordering deviation, documented on purpose: the umbrella spec says
+"Public signup followed by an allowlist check is insufficient because it
+creates an account before access is established." As built here, Supabase
+Auth is delapan's shared Auth, and it creates an `auth.users` row before
+`redeem_invite` can ever run — so a bare identity may exist with no hunter8
+invite behind it. What IS enforced, and is the actual security boundary, is
+narrower and precise: no hunter8 membership row, no hunter8 domain row, and no
+object in the hunter8 résumé bucket can exist before an invite is redeemed
+(see redeem_invite's ordering, and the storage insert policy's membership
+check). Closing the wider gap — restricting self-service signup itself — is a
+Supabase Auth project setting, not something this module can enforce, and it
+is owned by the rollout plan."""
 
 from __future__ import annotations
 
@@ -12,6 +25,7 @@ from fastapi import HTTPException, Request
 from companion_api.db import (
     auth_email_for,
     create_membership,
+    deletion_state_for,
     invite_by_token,
     mark_invite_redeemed,
     membership_for,
@@ -41,24 +55,29 @@ def require_membership(request: Request) -> str:
 
 
 def require_membership_or_deleting(request: Request) -> str:
-    """Like require_membership, but also admits a membership already marked
-    delete_pending — otherwise a failed deletion could never be retried, and the
-    user would be locked out of finishing their own erasure."""
+    """DELETE /account only. Admits a membership in any state, and also a caller
+    whose membership row is already gone but whose deletion never completed —
+    deletion removes the membership at step 3 of 5, so a failure in the last two
+    steps would otherwise lock the user out of finishing their own erasure."""
     user_id = current_user(request)
-    if membership_for(user_id) is None:
-        raise HTTPException(
-            status_code=403, detail="this account has no hunter8 invite"
-        )
-    return user_id
+    if membership_for(user_id) is not None:
+        return user_id
+    state = deletion_state_for(user_id)
+    if state is not None and state != "done":
+        return user_id
+    raise HTTPException(status_code=403, detail="this account has no hunter8 invite")
 
 
 def redeem_invite(token: str, user_id: str) -> None:
     """Bind a single-use invite to a verified identity.
 
     Every check runs BEFORE any product row is created — the umbrella spec
-    forbids creating an account and then testing an allowlist."""
-    # Rate limiting for this endpoint is deferred: slowapi is in the plan's
-    # stack but not wired yet, and belongs with the rollout plan.
+    forbids creating an account and then testing an allowlist.
+
+    Per-subject rate limiting for this route lives in routes/session.py
+    (companion_api.ratelimit), applied before this function runs — kept out of
+    auth.py so this module stays about identity and membership, not traffic
+    shaping."""
     _INVALID_TOKEN = HTTPException(
         status_code=403, detail="this invite is not valid for your account"
     )

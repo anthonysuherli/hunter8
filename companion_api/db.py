@@ -133,6 +133,15 @@ def dossier_state(user_id: str) -> dict[str, Any]:
     }
 
 
+def deletion_state_for(user_id: str) -> str | None:
+    """The terminal-or-pending state of a deletion run, if one was ever started."""
+    rows = (
+        _table("deletion_requests").select("state").eq("user_id", user_id)
+        .limit(1).execute()
+    )
+    return rows.data[0]["state"] if rows.data else None
+
+
 def mark_deletion_state(user_id: str, state: str, detail: str | None = None) -> None:
     """Upsert the audit record for an account-deletion run. deletion_requests
     has no FK to auth.users on purpose — the audit record outlives the user.
