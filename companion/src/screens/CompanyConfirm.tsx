@@ -15,6 +15,7 @@ export function CompanyConfirm() {
   const api = useApi();
   const { companies, setCompanies, setStage, lockStage } = useApp();
   const [url, setUrl] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     if (companies.length === 0) api.getCompanies().then(setCompanies);
@@ -29,6 +30,13 @@ export function CompanyConfirm() {
 
   async function add() {
     if (!url.trim()) return;
+    setAddError(null);
+    try {
+      new URL(url); // reject before the API sees a malformed value
+    } catch {
+      setAddError("That doesn't look like a URL — paste the full careers-page address.");
+      return;
+    }
     setCompanies([...companies, await api.addCompany(url)]);
     setUrl("");
   }
@@ -68,6 +76,9 @@ export function CompanyConfirm() {
         <input className="text-input" placeholder="Add a company careers URL…"
           value={url} onChange={(e) => setUrl(e.target.value)} />
         <button className="pill" onClick={add}>Add</button>
+      </div>
+      <div>
+        {addError && <p className="inline-error">{addError}</p>}
       </div>
       <p className="muted">{active.length} active · {pending.length} pending</p>
       <ClayButton onClick={approve}>Approve {active.length} companies →</ClayButton>

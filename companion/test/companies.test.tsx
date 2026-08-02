@@ -52,3 +52,11 @@ describe("company confirmation", () => {
     expect(useApp.getState().stage).toBe("discovering");
   });
 });
+
+  it("rejects an invalid URL inline without throwing", async () => {
+    render(<App />);
+    await screen.findByText("Hebbia");
+    await userEvent.type(screen.getByPlaceholderText(/careers url/i), "notaurl");
+    await userEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(await screen.findByText(/doesn't look like a URL/)).toBeInTheDocument();
+  });
