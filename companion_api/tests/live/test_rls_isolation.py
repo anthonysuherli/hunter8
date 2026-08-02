@@ -4,6 +4,7 @@ insufficient — RLS must be proven with two real users."""
 from __future__ import annotations
 
 import os
+import uuid
 
 from companion_api.tests.live.conftest import user_client
 
@@ -79,14 +80,19 @@ def test_job_postings_are_invisible_without_an_owned_assessment(two_users, live_
 
 def test_invites_are_never_client_readable(two_users, live_env):
     admin, alice, _ = two_users
+    # Unique per run and cleaned up: a fixed token made this test pass once and
+    # then fail on invites_pkey forever after, which reads like an RLS flake.
+    token = f"live-tok-{uuid.uuid4().hex[:12]}"
     admin.schema("hunter8").table("invites").insert(
-        {"token": "live-tok-1", "email": "someone@x.com",
+        {"token": token, "email": "someone@x.com",
          "expires_at": "2099-01-01T00:00:00+00:00"}
     ).execute()
-
-    as_alice = user_client(live_env, alice["email"], alice["password"])
-    rows = as_alice.schema("hunter8").table("invites").select("token").execute()
-    assert rows.data == []
+    try:
+        as_alice = user_client(live_env, alice["email"], alice["password"])
+        rows = as_alice.schema("hunter8").table("invites").select("token").execute()
+        assert rows.data == []
+    finally:
+        admin.schema("hunter8").table("invites").delete().eq("token", token).execute()
 
 
 def test_a_user_cannot_read_another_users_resume_object(two_users, live_env):
