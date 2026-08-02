@@ -55,7 +55,7 @@ const SHORTLIST: ShortlistItem[] = [
       { constraint: "Seniority band", status: "unknown", explanation: "Asks 10+ years." },
     ],
     whyFit: "Agent architecture at scale in a regulated bank; audit-trail experience is the differentiator.",
-    evidence: [DRAFT.evidence[0]], tradeoffs: ["Applying up a level."], uncertainties: [] },
+    evidence: [DRAFT.evidence[1]], tradeoffs: ["Applying up a level."], uncertainties: [] },
 ];
 
 const DISCOVERY_SCRIPT: DiscoveryRow["state"][] = ["waiting", "fetching", "assessed"];

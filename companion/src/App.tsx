@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
 import type { CompanionApi } from "./api";
 import { SectionRail } from "./components/SectionRail";
 import { makeFakeApi } from "./fakeApi";
@@ -10,6 +10,8 @@ import { Upload } from "./screens/Upload";
 import { ProfileDraft } from "./screens/ProfileDraft";
 import { ThesisConfirm } from "./screens/ThesisConfirm";
 import { CompanyConfirm } from "./screens/CompanyConfirm";
+import { Shortlist } from "./screens/Shortlist";
+import { Account } from "./screens/Account";
 
 export const ApiContext = createContext<CompanionApi>(makeFakeApi());
 export const useApi = () => useContext(ApiContext);
@@ -21,15 +23,25 @@ export const SCREENS: Partial<Record<Stage, ComponentType>> = {
   profile_draft: ProfileDraft,
   awaiting_confirmation: ThesisConfirm,
   watchlist: CompanyConfirm,
+  discovering: Shortlist,
+  ready: Shortlist,
 };
 
 export function App() {
   const stage = useApp((s) => s.stage);
+  const [showAccount, setShowAccount] = useState(false);
   const Screen = SCREENS[stage];
   return (
     <>
       {stage !== "front_door" && <SectionRail />}
-      <main className="dossier">{Screen ? <Screen /> : null}</main>
+      <main className="dossier">
+        {stage !== "front_door" && (
+          <p style={{ textAlign: "right" }}>
+            <button className="pill" onClick={() => setShowAccount(!showAccount)}>Account</button>
+          </p>
+        )}
+        {showAccount ? <Account /> : Screen ? <Screen /> : null}
+      </main>
     </>
   );
 }
