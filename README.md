@@ -60,6 +60,10 @@ See [hunter8_core/README.md](hunter8_core/README.md).
 The hosted companion's frontend lives in [companion/](companion/) — a separate
 app with its own dependencies that imports nothing from this repo's root.
 
+The companion's API lives in [companion_api/](companion_api/) — a separate Fly
+service that reuses delapan's audited auth and owns the `hunter8` Postgres
+schema. It imports `hunter8_core` and nothing else from this repo.
+
 ## Claude Code / Cursor plugin
 
 `plugin/` wraps the loop for both Claude Code (`.claude-plugin/`) and Cursor
