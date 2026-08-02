@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "hunter8-companion-api"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "delapan[cloud]",
+  "fastapi>=0.122.0",
+  "uvicorn[standard]>=0.38.0",
+  "pydantic-settings>=2.12.0",
+  "pydantic[email]>=2.12.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4.2", "httpx>=0.28.1"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", ".."]
+testpaths = ["tests"]
