@@ -299,6 +299,25 @@ git commit -m "feat(companion-api): scaffold the service with a hard import boun
 
 ### Task 2: The `hunter8` schema and its row-level security
 
+> **PLAN DEFECT, fixed during execution (commit `4b7f82a`) — the SQL below is
+> superseded; read `companion_api/migrations/` for the corrected version.**
+> The policies as written granted `authenticated` insert/update/delete with only
+> an `auth.uid() = user_id` check. `authenticated` is a **shared role in a shared
+> Supabase project**: every delapan user holds it. So any delapan user with no
+> hunter8 invite could write hunter8 rows straight through PostgREST, routing
+> around `require_membership` entirely — and inserting a `match_assessments` row
+> was enough to unlock reads of `job_postings` (FK validation ignores RLS, so it
+> doubled as an existence oracle over the shared corpus).
+> Corrections: clients are **select-only** (every write already went through the
+> service role); `force row level security` on all 13 tables (the owning
+> `postgres` role, which the Supabase SQL editor runs as, bypassed the policies);
+> explicit `service_role` grants, without which nothing downstream works; default
+> privileges for future tables; single-use `invite_token`; tighter check
+> constraints; and the missing RLS-predicate indexes.
+> **Operational prerequisite discovered here:** `hunter8` must be added to
+> PostgREST's exposed-schemas config or every client `.schema("hunter8")` call
+> returns PGRST106.
+
 **Files:**
 - Create: `companion_api/migrations/0001_hunter8_schema.sql`, `companion_api/migrations/0002_hunter8_rls.sql`
 - Create: `companion_api/tests/test_migrations.py`
@@ -619,6 +638,21 @@ git commit -m "feat(companion-api): hunter8 schema with row-level security"
 ---
 
 ### Task 3: Invite binding and the product gate
+
+> **PLAN DEFECT, fixed during execution (commit `fabed2d`) — the signature below
+> is superseded.** `redeem_invite(token, user_id, email)` took the email as a
+> caller-supplied argument, but delapan's `verify_bearer` returns only the
+> subject claim, so companion_api had **no trusted email source**: anyone
+> holding a leaked or forwarded invite token could satisfy the binding by
+> echoing the invited address. The real signature is
+> `redeem_invite(token, user_id)`; the email now comes from the Supabase auth
+> record for the verified user id (`db.auth_email_for`) and must be confirmed.
+> Also corrected here: `mark_invite_redeemed`'s conditional-update result was
+> discarded (single-use rested entirely on a UNIQUE constraint raising a 500);
+> a failed membership write left the invite stamped and the invitee permanently
+> locked out (now released, 503); and the membership `upsert` could resurrect a
+> `delete_pending` account (now an insert, with a 409 when one already exists).
+> **Task 6's `RedeemBody` therefore carries only `token` — no `email` field.**
 
 **Files:**
 - Create: `companion_api/db.py`, `companion_api/tests/test_auth.py`, `companion_api/tests/test_db_helpers.py`
@@ -1048,6 +1082,24 @@ git commit -m "feat(companion-api): private resume bucket scoped by user id"
 ---
 
 ### Task 5: The idempotent deletion path
+
+> **PLAN DEFECT, fixed during execution (commit `e6f1617`) — the step list below
+> is superseded.** Deletion could never converge, for any user. Task 2's own
+> hardening added `check ((redeemed_at is null) = (redeemed_by is null))` to
+> `hunter8.invites`, which collides with `redeemed_by uuid references auth.users
+> on delete set null`: deleting the auth user fires SET NULL, nulling
+> `redeemed_by` while `redeemed_at` stays set, violating the check and failing
+> the delete permanently for everyone who had redeemed an invite. `invites` was
+> invisible to review because it has no `user_id` column — only `redeemed_by`.
+> The real `_STEPS` is `["storage", "domain_rows", "membership", "invites",
+> "auth_user"]`; removing invites also stops the user's email outliving their
+> account. Also corrected: storage paged only the first 100 objects and then
+> reported `done`; an already-deleted auth user raised, downgrading a terminal
+> `done` to `delete_error`; the membership gate was never closed, so a client
+> could re-upload into the prefix mid-deletion; and raw exception text (which
+> Postgres routinely fills with row values) was persisted into an audit row
+> designed to outlive the user.
+> A new test now ties the step list to every table referencing `auth.users`.
 
 **Files:**
 - Create: `companion_api/deletion.py`, `companion_api/tests/test_deletion.py`
