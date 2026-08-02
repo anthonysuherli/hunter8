@@ -4,6 +4,15 @@
 -- IMPORTANT: the `hunter8` schema must be added to PostgREST's exposed-schemas
 -- config (Supabase dashboard: API Settings -> Exposed schemas), or every
 -- client `.schema("hunter8")` call returns PGRST106.
+--
+-- Exposing it is NOT sufficient on its own. PostgREST keeps a separate schema
+-- CACHE, and `notify pgrst, 'reload config'` does not refresh it — the API then
+-- answers PGRST205 ("Could not find the table ... in the schema cache") for
+-- tables it can genuinely see, with a hint naming the very table you asked for.
+-- Verified on the hunter8-spine branch: 5 of 8 live tests failed this way until
+-- BOTH notifies were issued. Rollout must run:
+--     notify pgrst, 'reload config';
+--     notify pgrst, 'reload schema';
 alter table hunter8.invites enable row level security;
 alter table hunter8.invites force row level security;
 alter table hunter8.product_memberships enable row level security;
