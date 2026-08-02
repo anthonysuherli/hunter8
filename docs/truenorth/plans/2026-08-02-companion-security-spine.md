@@ -639,6 +639,21 @@ git commit -m "feat(companion-api): hunter8 schema with row-level security"
 
 ### Task 3: Invite binding and the product gate
 
+> **PLAN DEFECT, fixed during execution (commit `fabed2d`) — the signature below
+> is superseded.** `redeem_invite(token, user_id, email)` took the email as a
+> caller-supplied argument, but delapan's `verify_bearer` returns only the
+> subject claim, so companion_api had **no trusted email source**: anyone
+> holding a leaked or forwarded invite token could satisfy the binding by
+> echoing the invited address. The real signature is
+> `redeem_invite(token, user_id)`; the email now comes from the Supabase auth
+> record for the verified user id (`db.auth_email_for`) and must be confirmed.
+> Also corrected here: `mark_invite_redeemed`'s conditional-update result was
+> discarded (single-use rested entirely on a UNIQUE constraint raising a 500);
+> a failed membership write left the invite stamped and the invitee permanently
+> locked out (now released, 503); and the membership `upsert` could resurrect a
+> `delete_pending` account (now an insert, with a 409 when one already exists).
+> **Task 6's `RedeemBody` therefore carries only `token` — no `email` field.**
+
 **Files:**
 - Create: `companion_api/db.py`, `companion_api/tests/test_auth.py`, `companion_api/tests/test_db_helpers.py`
 - Modify: `companion_api/auth.py`
