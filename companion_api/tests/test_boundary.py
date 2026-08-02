@@ -11,8 +11,17 @@ FORBIDDEN = {
 }
 
 
-def _sources() -> list[Path]:
-    files = [p for p in PKG.rglob("*.py") if ".venv" not in p.parts and "test_" not in p.name]
+SELF = Path(__file__).resolve()
+
+
+def _sources(*, include_tests: bool = True) -> list[Path]:
+    """Every source file in the package. Tests are included on purpose — a test
+    that imports the personal runtime is just as much a boundary breach as a
+    module that does. Only THIS file is excluded from the artifact-name scan,
+    since it necessarily spells out the names it forbids."""
+    files = [p for p in PKG.rglob("*.py") if ".venv" not in p.parts]
+    if not include_tests:
+        files = [p for p in files if p.resolve() != SELF]
     assert files, "no source files found"
     return files
 
@@ -32,7 +41,7 @@ def test_never_imports_the_personal_runtime():
 
 def test_never_names_a_personal_artifact():
     pattern = re.compile(r"intent\.md|rubric\.md|brief\.md|hunter8\.db|watchlist\.yaml|resumes/")
-    for path in _sources():
+    for path in _sources(include_tests=False):
         assert not pattern.search(path.read_text()), path
 
 
