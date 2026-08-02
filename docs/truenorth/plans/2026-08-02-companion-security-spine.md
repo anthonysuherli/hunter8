@@ -299,6 +299,25 @@ git commit -m "feat(companion-api): scaffold the service with a hard import boun
 
 ### Task 2: The `hunter8` schema and its row-level security
 
+> **PLAN DEFECT, fixed during execution (commit `4b7f82a`) — the SQL below is
+> superseded; read `companion_api/migrations/` for the corrected version.**
+> The policies as written granted `authenticated` insert/update/delete with only
+> an `auth.uid() = user_id` check. `authenticated` is a **shared role in a shared
+> Supabase project**: every delapan user holds it. So any delapan user with no
+> hunter8 invite could write hunter8 rows straight through PostgREST, routing
+> around `require_membership` entirely — and inserting a `match_assessments` row
+> was enough to unlock reads of `job_postings` (FK validation ignores RLS, so it
+> doubled as an existence oracle over the shared corpus).
+> Corrections: clients are **select-only** (every write already went through the
+> service role); `force row level security` on all 13 tables (the owning
+> `postgres` role, which the Supabase SQL editor runs as, bypassed the policies);
+> explicit `service_role` grants, without which nothing downstream works; default
+> privileges for future tables; single-use `invite_token`; tighter check
+> constraints; and the missing RLS-predicate indexes.
+> **Operational prerequisite discovered here:** `hunter8` must be added to
+> PostgREST's exposed-schemas config or every client `.schema("hunter8")` call
+> returns PGRST106.
+
 **Files:**
 - Create: `companion_api/migrations/0001_hunter8_schema.sql`, `companion_api/migrations/0002_hunter8_rls.sql`
 - Create: `companion_api/tests/test_migrations.py`
