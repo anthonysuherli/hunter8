@@ -21,6 +21,12 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    from companion_api.routes import account, dossier, session
+
+    app.include_router(session.router)
+    app.include_router(dossier.router)
+    app.include_router(account.router)
+
     return app
 
 
