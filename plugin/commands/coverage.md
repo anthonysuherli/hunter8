@@ -1,4 +1,5 @@
 ---
+name: coverage
 description: Find watchlist boards producing nothing, and propose additions
 argument-hint: "[stale-days, default 30]"
 allowed-tools: Bash, Read

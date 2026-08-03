@@ -1,4 +1,5 @@
 ---
+name: morning
 description: Run the full discovery pipeline, then report and offer triage
 argument-hint: "[days, default 7]"
 allowed-tools: Bash, Read, Write, Task
@@ -50,8 +51,9 @@ to another model.** For a `score.py` stop, also report how many remain in
 
 ## 4. Report
 
-Dispatch the `hunter8-analyst` subagent with the window (`<days>` days), the
-`T0` value from step 2, and the output path `reports/YYYY-MM-DD.md`. Tell it to
+Dispatch the `hunter8-analyst` subagent (Cursor: Task tool with
+`subagent_type=hunter8-analyst`) with the window (`<days>` days), the `T0`
+value from step 2, and the output path `reports/YYYY-MM-DD.md`. Tell it to
 run `.venv/bin/python analyze.py shortlist --since-days <days> --new-since <T0>
 --json` itself. **Do not run that command in the main thread and do not pass its
 JSON to the subagent** — the whole reason the subagent exists is to keep 160+

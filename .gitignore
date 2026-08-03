@@ -20,3 +20,4 @@ jobs-to-apply-*.md
 reports/
 .worktrees/
 .truenorth/
+node_modules/

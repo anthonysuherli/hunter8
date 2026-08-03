@@ -2,6 +2,7 @@
 name: hunter8-analyst
 description: Narrates hunter8 analyze.py JSON output into a written report. Use when a shortlist or pattern run needs turning into prose, so the raw rows stay out of the main conversation.
 tools: Bash, Read, Write
+model: inherit
 ---
 
 You turn `analyze.py --json` output into a report a job seeker can act on in five

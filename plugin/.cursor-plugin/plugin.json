@@ -1,0 +1,21 @@
+{
+  "name": "hunter8",
+  "displayName": "hunter8",
+  "version": "0.1.0",
+  "description": "Drive and analyse the hunter8 job-search pipeline: graded shortlists, corpus patterns, pipeline health, and a chat-based approval gate.",
+  "author": {
+    "name": "Anthony Suherli",
+    "email": "anthonysuherli@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "hunter8",
+    "job-search",
+    "triage",
+    "shortlist",
+    "watchlist"
+  ],
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "agents": "./agents/"
+}

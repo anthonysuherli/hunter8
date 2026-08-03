@@ -1,4 +1,5 @@
 ---
+name: triage
 description: Review graded jobs and write the ones you approve to the tracker
 argument-hint: "[grade, default A]"
 allowed-tools: Bash, Read

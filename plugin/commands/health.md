@@ -1,4 +1,5 @@
 ---
+name: health
 description: Report pipeline and calibration state, with drift called out
 allowed-tools: Bash, Read
 ---
